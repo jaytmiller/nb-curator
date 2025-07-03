@@ -9,7 +9,7 @@ from .logging import CuratorLogger
 
 
 CURATOR_PACKAGES = [
-    "uv", "mamba", "papermill", "ipykernel"
+    "uv", "mamba", "papermill", "ipyenvironment"
 ]
 
 
@@ -20,7 +20,7 @@ class EnvironmentManager:
         self.logger = logger
         self.python_program = python_program
     
-    def initialize_environment(self, kernel_name: str = "base") -> bool:
+    def initialize_environment(self, environment_name: str = "base") -> bool:
         """Initialize the environment for notebook processing."""
         self.logger.info("Initializing environment...")
         
@@ -28,8 +28,8 @@ class EnvironmentManager:
         if not self._install_curator_packages():
             return False
         
-        # Register Jupyter kernel
-        if not self._register_kernel(kernel_name):
+        # Register Jupyter environment
+        if not self._register_environment(environment_name):
             return False
         
         self.logger.info("Environment initialization completed successfully")
@@ -115,15 +115,15 @@ class EnvironmentManager:
         
         return True
     
-    def _register_kernel(self, kernel_name: str) -> bool:
-        """Register Jupyter kernel for the environment."""
+    def _register_environment(self, environment_name: str) -> bool:
+        """Register Jupyter environment for the environment."""
         cmd = [
             "python", "-m", "ipykernel", "install", 
-            "--user", "--name", kernel_name
+            "--user", "--name", environment_name
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode != 0:
-            return self.logger.error(f"Failed to register kernel: {result.stderr}")
+            return self.logger.error(f"Failed to register environment: {result.stderr}")
         
         return True

@@ -21,10 +21,10 @@ NOTEBOOK_MAX_SECS = 30 * 60
 class NotebookTester:
     """Tests notebooks by executing them in isolated environments."""
     
-    def __init__(self, logger: CuratorLogger, kernel: str = "base", 
+    def __init__(self, logger: CuratorLogger, environment: str = "base", 
                  jobs: int = 1, timeout: int = NOTEBOOK_MAX_SECS):
         self.logger = logger
-        self.kernel = kernel
+        self.environment = environment
         self.jobs = jobs
         self.timeout = timeout
     
@@ -38,7 +38,7 @@ class NotebookTester:
             results = executor.map(
                 self._test_single_notebook,
                 notebook_paths,
-                [self.kernel] * len(notebook_paths),
+                [self.environment] * len(notebook_paths),
                 [self.timeout] * len(notebook_paths),
             )
             
@@ -71,7 +71,7 @@ class NotebookTester:
         self.logger.info(f"Filtered notebook list to {len(filtered)} entries")
         return filtered
     
-    def _test_single_notebook(self, notebook: str, kernel: str, timeout: int) -> Tuple[bool, str, str]:
+    def _test_single_notebook(self, notebook: str, environment: str, timeout: int) -> Tuple[bool, str, str]:
         """Test a single notebook in isolation."""
         if notebook.startswith("#"):
             return False, notebook, self._print_divider(f"Skipping {notebook}")
@@ -79,7 +79,7 @@ class NotebookTester:
         base_nb = os.path.basename(notebook)
         start = datetime.datetime.now()
         
-        output = self._print_divider(f"Testing '{base_nb}' on kernel '{kernel}'")
+        output = self._print_divider(f"Testing '{base_nb}' on environment '{environment}'")
         
         here = os.getcwd()
         err = True  # assume failed
@@ -100,7 +100,7 @@ class NotebookTester:
                 if notebook.endswith(".ipynb"):
                     cmd = [
                         "papermill", "--no-progress-bar", 
-                        os.path.basename(notebook), "-k", kernel, "test.ipynb"
+                        os.path.basename(notebook), "-k", environment, "test.ipynb"
                     ]
                 elif notebook.endswith(".py"):
                     cmd = ["python", os.path.basename(notebook)]

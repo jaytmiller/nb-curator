@@ -24,7 +24,7 @@ class CuratorConfig:
     test: bool = False
     jobs: int = 1
     timeout: int = 300
-    kernel: str = "base"
+    environment: str = "base"
     init_env: bool = False
     clone: bool = False
     

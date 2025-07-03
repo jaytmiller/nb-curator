@@ -27,7 +27,7 @@ class NotebookCurator:
         self.repo_manager = RepositoryManager(config.repos_dir, self.logger, config.clone)
         self.notebook_processor = NotebookProcessor(self.logger)
         self.env_manager = EnvironmentManager(self.logger, config.python_program)
-        self.tester = NotebookTester(self.logger, config.kernel, config.jobs, config.timeout)
+        self.tester = NotebookTester(self.logger, config.environment, config.jobs, config.timeout)
         
         # Create output directories
         os.makedirs(config.output_dir, exist_ok=True)
@@ -48,7 +48,7 @@ class NotebookCurator:
         """Execute the complete curation workflow."""
         # Initialize environment if requested
         if self.config.init_env:
-            if not self.env_manager.initialize_environment(self.config.kernel):
+            if not self.env_manager.initialize_environment(self.config.environment):
                 return False
         
         # Load and validate specification
