@@ -120,6 +120,8 @@ class NotebookCurator:
     def _get_requested_python_version(self) -> List[int]:
         """Extract requested Python version from spec."""
         version_str = self.spec["image_spec_header"]["python_version"]
+        if isinstance(version_str, (int, float)):
+            version_str = str(version_str))
         if not isinstance(version_str, str):
             raise ValueError("Invalid python_version in spec file")
         return list(map(int, version_str.split(".")))

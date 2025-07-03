@@ -9,7 +9,7 @@ from .logging import CuratorLogger
 
 
 CURATOR_PACKAGES = [
-    "uv", "mamba", "papermill", "ipyenvironment"
+    "uv", "mamba", "papermill", "ipykernel"
 ]
 
 
@@ -118,7 +118,7 @@ class EnvironmentManager:
     def _register_environment(self, environment_name: str) -> bool:
         """Register Jupyter environment for the environment."""
         cmd = [
-            "python", "-m", "ipykernel", "install", 
+            self.python_version, "-m", "ipykernel", "install", 
             "--user", "--name", environment_name
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
