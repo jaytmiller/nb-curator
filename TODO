@@ -1,0 +1,27 @@
+the tool was great! it was a bit tedious messing with requirements to get everything working, but it was always obvious what needed an update — this will be great for curators.
+
+other feedback:
+# should have
+
+I was getting a weird error about running in the base kernel. it took me a
+minute to realize my default is python3. I modified the script because it
+seemed like this value was hard-coded in def test_notebooks(). Making this
+configurable (if it's not already, might have missed it) would be good; adding
+--create-env would also solve the problem, I think.
+
+# nice to have
+
+Regex also matches with checkpoint notebooks, so after making some edits I was surprised to see 9 notebooks being tested instead of 8. The script was testing data-access.ipynb anddata-access-checkpoint.ipynb (checkpoint located at notebook-repos/tike_content/content/notebooks/data-access/.ipynb_checkpoints/data-access-checkpoint.ipynb).
+
+I think the docs are slightly out of sync with the script (e.g. --test vs --test-notebooks).
+
+We should add to the docs a "TL:DR run spec with these specified flags" that is
+copy/pastable for a one-line run.  For my run those flags were:
+
+```
+ python --compile --install --test-notebooks spec.yaml
+```
+
+but presumably we would add `--submit-for-build`. If it's easy, maybe we could
+add an --auto-build flag for a "typical" run that includes everything for a
+one-liner.
