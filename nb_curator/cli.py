@@ -5,6 +5,7 @@ import sys
 
 from .config import CuratorConfig
 from .curator import NotebookCurator
+from .injector import SpiInjector
 
 
 def parse_args():
@@ -51,17 +52,25 @@ def parse_args():
         help="Initialize the environment before processing notebooks",
     )
     parser.add_argument(
-        "-c", "--compile",
+        "-c",
+        "--compile",
         action="store_true",
         help="Compile input package lists to generate pinned requirements",
     )
     parser.add_argument(
-        "-i", "--install",
+        "--no-simplify-paths",
+        action="store_true",
+        help="Use full input paths in compiler requirements table output",
+    )
+    parser.add_argument(
+        "-i",
+        "--install",
         action="store_true",
         help="Install resolved notebook dependencies in system Python environment",
     )
     parser.add_argument(
-        "-t", "--test-notebooks",
+        "-t",
+        "--test-notebooks",
         default=None,
         const=".*",
         nargs="?",
@@ -69,7 +78,8 @@ def parse_args():
         help="Test notebooks matching patterns (comma-separated regexes)",
     )
     parser.add_argument(
-        "-j", "--jobs",
+        "-j",
+        "--jobs",
         default=1,
         type=int,
         help="Number of parallel jobs for notebook testing",
@@ -81,7 +91,8 @@ def parse_args():
         help="Timeout in seconds for notebook tests",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -96,9 +107,12 @@ def parse_args():
         help="Cleanup repo clones after processing",
     )
     parser.add_argument(
-        "--no-simplify-paths",
-        action="store_true",
-        help="Use full paths in requirements table output",
+        "--inject-spi",
+        type=str,
+        default=None,
+        nargs="?",
+        const="",
+        help="Inject requirements into the specified Science Platform Images deployment.",
     )
     return parser.parse_args()
 
@@ -106,7 +120,7 @@ def parse_args():
 def main():
     """Main entry point for the CLI."""
     args = parse_args()
-    
+
     # Create configuration
     config = CuratorConfig(
         spec_file=args.spec_file,
@@ -125,13 +139,14 @@ def main():
         timeout=args.timeout,
         init_env=bool(args.init_env),
         clone=args.clone,
+        inject_spi=args.inject_spi,
     )
-    
+
     # Create and run curator
     curator = NotebookCurator(config)
     success = curator.main()
     curator.print_log_counters()
-    
+
     sys.exit(0 if success else 1)
 
 

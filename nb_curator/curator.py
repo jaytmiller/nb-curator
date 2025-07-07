@@ -13,226 +13,246 @@ from .processor import NotebookProcessor
 from .environment import EnvironmentManager
 from .compiler import RequirementsCompiler
 from .notebook_tester import NotebookTester
+from .injector import get_injector
 
 
 class NotebookCurator:
     """Main class orchestrating the notebook curation process."""
-    
+
     def __init__(self, config: CuratorConfig):
         self.config = config
         self.logger = CuratorLogger(config.verbose, config.debug)
-        
+
         # Initialize components
         self.validator = SpecValidator(self.logger)
-        self.repo_manager = RepositoryManager(config.repos_dir, self.logger, config.clone)
+        self.repo_manager = RepositoryManager(
+            config.repos_dir, self.logger, config.clone
+        )
         self.notebook_processor = NotebookProcessor(self.logger)
         self.env_manager = EnvironmentManager(self.logger, config.python_program)
-        self.tester = NotebookTester(self.logger, config.environment, config.jobs, config.timeout)
-        
+        self.tester = NotebookTester(
+            self.logger, config.environment, config.jobs, config.timeout
+        )
+        self.injector = get_injector(self.logger, config.inject_spi)
+
         # Create output directories
         os.makedirs(config.output_dir, exist_ok=True)
         os.makedirs(config.repos_dir, exist_ok=True)
-        
+
         # State variables
         self.spec = {}
         self.repos_to_setup = {}
-    
+
     def main(self) -> bool:
         """Main execution method."""
         try:
             return self._execute_workflow()
         except Exception as e:
             return self.logger.exception(e, f"Error during curation: {e}")
-    
+
     def _execute_workflow(self) -> bool:
         """Execute the complete curation workflow."""
         # Initialize environment if requested
         if self.config.init_env:
             if not self.env_manager.initialize_environment(self.config.environment):
                 return False
-        
+
         # Load and validate specification
         if not self._load_and_validate_spec():
             return False
-        
+
         # Check Python version compatibility
         if not self._check_python_version():
             return False
-        
+
         # Setup repositories
         if not self._setup_repositories():
             return False
-        
+
         # Process notebooks
         notebook_paths = self.notebook_processor.collect_notebook_paths(
             self.spec, self.repos_to_setup
         )
         if not notebook_paths:
             return False
-        
+
         # Extract imports
         test_imports = self.notebook_processor.extract_imports(notebook_paths)
         if not test_imports:
             return False
-        
+
         # Handle requirements compilation
         if not self._handle_requirements_compilation(notebook_paths):
             return False
-        
+
         # Update spec file if requested
         if self.config.revise_spec_file:
             if not self._revise_spec_file(notebook_paths, test_imports):
                 return False
-        
+
         # Install packages if requested
         if self.config.install:
             if not self._install_and_test_packages(test_imports):
                 return False
-        
+
         # Test notebooks if requested
         if self.config.test:
             if not self._test_notebooks(notebook_paths):
                 return False
-        
+
+        if self.config.inject_spi:
+            self.injector.inject(
+                self.spec,
+                self.spi_path,
+            )
+
         # Cleanup if requested
         if self.config.cleanup:
             if not self.repo_manager.cleanup_repos():
                 return False
-        
+
         return True
-    
+
     def _load_and_validate_spec(self) -> bool:
         """Load and validate the specification file."""
         if not self.validator.load_spec(self.config.spec_file):
             return False
-        
+
         if not self.validator.validate_spec():
             return False
-        
+
         self.spec = self.validator.spec
         return True
-    
+
     def _check_python_version(self) -> bool:
         """Check Python version compatibility."""
         requested_version = self._get_requested_python_version()
         return self.env_manager.check_python_version(requested_version)
-    
+
     def _get_requested_python_version(self) -> List[int]:
         """Extract requested Python version from spec."""
         version_str = self.spec["image_spec_header"]["python_version"]
         if isinstance(version_str, (int, float)):
-            version_str = str(version_str))
+            version_str = str(version_str)
         if not isinstance(version_str, str):
             raise ValueError("Invalid python_version in spec file")
         return list(map(int, version_str.split(".")))
-    
+
     def _setup_repositories(self) -> bool:
         """Setup all required repositories."""
         # Collect repository URLs
         repo_urls = [self.spec["image_spec_header"]["nb_repo"]]
-        
+
         for entry in self.spec["selected_notebooks"]:
             nb_repo = entry.get("nb_repo", repo_urls[0])
             if nb_repo not in repo_urls:
                 repo_urls.append(nb_repo)
-        
+        if self.config.inject_spi:
+            repo_urls.append(self.injector.url)
         # Setup repositories
         if not self.repo_manager.setup_repositories(repo_urls):
             return False
-        
+
         self.repos_to_setup = self.repo_manager.repos_to_setup
         return True
-    
+
     def _handle_requirements_compilation(self, notebook_paths: List[str]) -> bool:
         """Handle requirements compilation workflow."""
         compiler = RequirementsCompiler(
-            self.logger, 
+            self.logger,
             self.config.python_program,
             str(self.spec["image_spec_header"]["python_version"]),
-            self.config.verbose
+            self.config.verbose,
         )
-        
+
         requirements_files = compiler.find_requirements_files(notebook_paths)
-        
+
         if self.config.compile:
             # Compile requirements
-            output_file = self.config.output_dir / f"{self._get_moniker()}-compile-output.txt"
-            package_versions = compiler.compile_requirements(requirements_files, output_file)
-            
+            output_file = (
+                self.config.output_dir / f"{self._get_moniker()}-compile-output.txt"
+            )
+            package_versions = compiler.compile_requirements(
+                requirements_files, output_file
+            )
+
             if not package_versions:
                 return False
-            
+
             # Generate conda spec
             conda_spec = compiler.generate_conda_spec(
                 self.spec["image_spec_header"]["image_name"]
             )
-            
+
             # Store results in spec
             if "out" not in self.spec:
                 self.spec["out"] = {}
             self.spec["out"]["package_versions"] = package_versions
             self.spec["out"]["conda_spec"] = conda_spec
-        
+
         return True
-    
+
     def _install_and_test_packages(self, test_imports: dict) -> bool:
         """Install packages and test imports."""
         package_versions = self.spec.get("out", {}).get("package_versions", [])
-        
+
         if not self.env_manager.install_packages(
             package_versions, self.config.output_dir, self._get_moniker()
         ):
             return False
-        
+
         return self.env_manager.test_imports(test_imports)
-    
+
     def _test_notebooks(self, notebook_paths: List[str]) -> bool:
         """Test notebooks based on configuration."""
         if isinstance(self.config.test, str):
-            filtered_notebooks = self.tester.filter_notebooks(notebook_paths, self.config.test)
+            filtered_notebooks = self.tester.filter_notebooks(
+                notebook_paths, self.config.test
+            )
         else:
             filtered_notebooks = notebook_paths
-        
+
         return self.tester.test_notebooks(filtered_notebooks)
-    
+
     def _revise_spec_file(self, notebook_paths: List[str], test_imports: dict) -> bool:
         """Update the spec file with computed outputs."""
         try:
             # Backup original file
             shutil.copy(self.config.spec_file, f"{self.config.spec_file}.bak")
-            
+
             self.logger.info(f"Revising spec file {self.config.spec_file}")
-            
+
             # Update spec with outputs
             if "out" not in self.spec:
                 self.spec["out"] = {}
-            
+
             self.spec["out"]["test_notebooks"] = [str(p) for p in notebook_paths]
             self.spec["out"]["test_imports"] = list(test_imports.keys())
-            
+
             # Write updated spec
             from ruamel.yaml import YAML
+
             yaml = YAML()
             yaml.preserve_quotes = True
             yaml.indent(mapping=2, sequence=4, offset=2)
-            
+
             with open(self.config.spec_file, "w") as f:
                 yaml.dump(self.spec, f)
-            
+
             # Remove backup
             os.remove(f"{self.config.spec_file}.bak")
             return True
-            
+
         except Exception as e:
             # Restore backup on error
             if os.path.exists(f"{self.config.spec_file}.bak"):
                 shutil.copy(f"{self.config.spec_file}.bak", self.config.spec_file)
             return self.logger.exception(e, f"Error revising spec file: {e}")
-    
+
     def _get_moniker(self) -> str:
         """Get a filesystem-safe version of the image name."""
         return self.spec["image_spec_header"]["image_name"].replace(" ", "-").lower()
-    
+
     def print_log_counters(self):
         """Print summary of logged messages."""
         self.logger.print_log_counters()

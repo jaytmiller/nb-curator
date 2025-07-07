@@ -9,7 +9,7 @@ from typing import Optional
 @dataclass
 class CuratorConfig:
     """Configuration class for NotebookCurator."""
-    
+
     spec_file: str
     python_program: str = sys.executable
     revise_spec_file: bool = False
@@ -26,12 +26,12 @@ class CuratorConfig:
     timeout: int = 300
     environment: str = "base"
     init_env: bool = False
-    clone: bool = False
-    
+    clone: bool = None
+    inject_spi: str | None = None
+
     def __post_init__(self):
         """Post-initialization processing."""
         self.output_dir = Path(self.output_dir)
         self.repos_dir = (
-            Path(self.repos_dir) if self.repos_dir 
-            else Path.cwd() / "notebook-repos"
+            Path(self.repos_dir) if self.repos_dir else Path.cwd() / "notebook-repos"
         )
