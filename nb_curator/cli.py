@@ -23,11 +23,6 @@ def parse_args():
         help="Path to python program to use for installation and test",
     )
     parser.add_argument(
-        "--revise-spec-file",
-        action="store_true",
-        help="Add computed values to the spec file under outputs",
-    )
-    parser.add_argument(
         "--output-dir",
         type=str,
         default="./output",
@@ -36,7 +31,7 @@ def parse_args():
     parser.add_argument(
         "--repos-dir",
         type=str,
-        default="./notebook-repos",
+        default="./repos",
         help="Directory to store/locate cloned repos",
     )
     parser.add_argument(
@@ -108,10 +103,7 @@ def parse_args():
     )
     parser.add_argument(
         "--inject-spi",
-        type=str,
-        default=None,
-        nargs="?",
-        const="",
+        action="store_true",
         help="Inject requirements into the specified Science Platform Images deployment.",
     )
     return parser.parse_args()
@@ -125,7 +117,6 @@ def main():
     config = CuratorConfig(
         spec_file=args.spec_file,
         python_program=args.python_program,
-        revise_spec_file=args.revise_spec_file,
         output_dir=args.output_dir,
         repos_dir=args.repos_dir,
         verbose=args.verbose,

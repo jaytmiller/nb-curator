@@ -37,7 +37,7 @@ class RequirementsCompiler:
         return requirements_files
 
     def compile_requirements(
-        self, requirements_files: List[Path], output_file: Path
+        self, requirements_files: List[Path], output_path: Path
     ) -> Optional[List[str]]:
         """Compile requirements files into pinned versions."""
         if not requirements_files:
@@ -45,33 +45,40 @@ class RequirementsCompiler:
 
         self.logger.info("Compiling requirements to determine package versions")
 
-        if not self._run_uv_compile(output_file, requirements_files):
+        if not self._run_uv_compile(output_path, requirements_files):
             self._log_compilation_failure(requirements_files)
             return None
 
-        # Read compiled requirements
-        package_versions = []
-        with open(output_file, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    package_versions.append(line)
+        package_versions = self.read_package_versions([output_path])
 
         self.logger.info(f"Resolved {len(package_versions)} package versions")
         return package_versions
 
-    def generate_conda_spec(self, image_name: str) -> dict:
-        """Generate conda environment specification."""
-        moniker = image_name.replace(" ", "-").lower()
+    def read_package_versions(self, requirements_files: List[Path]) -> List[str]:
+        """Read package versions from requirements files."""
+        # Read compiled requirements
+        package_versions = []
+        for req_file in requirements_files:
+            with req_file.open("r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        package_versions.append(line)
+        return package_versions
 
+    def generate_mamba_spec(self, image_name: str, mamba_files: List[str]) -> dict:
+        """Generate mamba environment specification."""
+        moniker = image_name.replace(" ", "-").lower()
+        dependencies = [
+                f"python={self.python_version}" if self.python_version else "python",
+        ]
+        spi_packages = self.read_package_versions(mamba_files)
+        dependencies += spi_packages
+        dependencies += [{"pip": []},]
         return {
             "name": moniker,
             "channels": ["conda-forge"],
-            "dependencies": [
-                f"python={self.python_version}" if self.python_version else "python",
-                "pip",
-                {"pip": {}},
-            ],
+            "dependencies": dependencies
         }
 
     def _run_uv_compile(

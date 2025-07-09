@@ -1,0 +1,40 @@
+#! /bin/bash
+
+export MM="$HOME/.nb-curator/mm"
+
+mkdir -p ${MM}
+cd ${MM}
+
+
+# Linux Intel (x86_64):
+curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
+
+
+export MAMBA_ROOT_PREFIX=${MM}
+eval "$(${MM}/bin/micromamba shell hook -s posix)"
+
+micromamba config append channels conda-forge
+micromamba config set channel_priority strict
+
+export PATH=${MM}/bin:${PATH}
+
+micromamba self-update
+
+micromamba activate  # this activates the base environment
+# micromamba install python=3.6 jupyter -c conda-forge
+# or
+micromamba create -n nbcurator -c conda-forge
+micromamba activate nbcurator
+micromamba install python=3.11 pip mamba -c conda-forge
+
+export PATH=${MM}/envs/nbcuator/bin:${PATH}
+
+# # Linux ARM64:
+# curl -Ls https://micro.mamba.pm/api/micromamba/linux-aarch64/latest | tar -xvj bin/micromamba
+# # Linux Power:
+# curl -Ls https://micro.mamba.pm/api/micromamba/linux-ppc64le/latest | tar -xvj bin/micromamba
+# # macOS Intel (x86_64):
+# curl -Ls https://micro.mamba.pm/api/micromamba/osx-64/latest | tar -xvj bin/micromamba
+# # macOS Silicon/M1 (ARM64):
+# curl -Ls https://micro.mamba.pm/api/micromamba/osx-arm64/latest | tar -xvj bin/micromamba
+

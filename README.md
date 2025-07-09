@@ -101,14 +101,6 @@ no notebooks or regexps are specified, it will run all notebooks.  This is a
 headless crash test which runs up to --jobs [n] notebooks in parallel using a
 --timeout [seconds] to kill runaway notebooks.
 
-- If --revise-spec is specified,  saves various products to the "out" section of
-  the YAML spec:
-      - List of discovered notebooks
-      - Combined package vesion requirements
-      - List of test imports
-      - Basic conda spec .yml file for Python environment
-  If --revise-spec is not specified,  it will not modify the input spec.
-
 - If --cleanup is specified,  it will remove all cloned repositories.
 
 - If a proposed/not-implemented --wipe-env is specified,  it will remove the

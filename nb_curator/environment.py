@@ -38,7 +38,7 @@ class EnvironmentManager:
         self.logger.info("Checking Python version...")
 
         result = subprocess.run(
-            [self.python_program, "--version"],
+            ["python", "--version"],
             capture_output=True,
             text=True,
             check=True,
@@ -80,7 +80,7 @@ class EnvironmentManager:
             self.logger.error(f"Package installation failed: {result.stderr}")
             return False
 
-        self.logger.info("Package installation completed successfully")
+        self.logger.info("Package installation completed successfully:", "\n" + result.stdout)
         return True
 
     def test_imports(self, import_map: dict) -> bool:
@@ -93,10 +93,11 @@ class EnvironmentManager:
                 continue
 
             try:
+                self.logger.info(f"Importing {pkg} ...")
                 __import__(pkg)
                 self.logger.info(f"Importing {pkg} ... ok")
-            except Exception:
-                self.logger.error(f"Failed to import {pkg}")
+            except Exception as exc:
+                self.logger.exception(exc, f"Failed to import {pkg}")
                 failed_imports.append(pkg)
 
         if failed_imports:
@@ -123,7 +124,7 @@ class EnvironmentManager:
     def _register_environment(self, environment_name: str) -> bool:
         """Register Jupyter environment for the environment."""
         cmd = [
-            self.python_version,
+            "python",
             "-m",
             "ipykernel",
             "install",

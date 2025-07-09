@@ -3,6 +3,7 @@
 *~
 
 notebook-repos
+repos
 
 __pycache__/
 *.py[cod]

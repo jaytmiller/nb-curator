@@ -1,6 +1,8 @@
 # Image header information
 image_spec_header:
   image_name: TIKE 2025.07-beta
+  deployment_name: tike  # currenty tike, roman, or jwebbinar
+  kernel_name: tess      # currently tess, roman-cal, or masterclass (and conda env name)
   description: |
     This is a beta test of the latest TIKE packages. Use at your own risk!
   valid_on: 2025-07-02
@@ -22,13 +24,13 @@ selected_notebooks:
   # -------------------------------------------------
   # include TESS notebooks
   - nb_repo: https://github.com/spacetelescope/mast_notebooks
-    root_nb_directory: notebooks/tess
+    root_nb_directory: notebooks/TESS
     include_subdirs:
       - beginner_how_to_use_lc
       - beginner_tour_lc_tp
   # include Kepler notebooks
   - nb_repo: https://github.com/spacetelescope/mast_notebooks
-    root_nb_directory: notebooks/kepler
+    root_nb_directory: notebooks/Kepler
     include_subdirs:
       - identifying_transiting_planet_signals
       - instrumental_noise_4_electronic_noise

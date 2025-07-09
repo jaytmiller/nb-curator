@@ -33,7 +33,7 @@ class NotebookCurator:
         self.tester = NotebookTester(
             self.logger, config.environment, config.jobs, config.timeout
         )
-        self.injector = get_injector(self.logger, config.inject_spi)
+        self.injector = get_injector(self.logger, config.repos_dir)
 
         # Create output directories
         os.makedirs(config.output_dir, exist_ok=True)
@@ -42,6 +42,14 @@ class NotebookCurator:
         # State variables
         self.spec = {}
         self.repos_to_setup = {}
+
+    @property
+    def deployment_name(self):
+        return self.spec["image_spec_header"]["deployment_name"]
+
+    @property
+    def kernel_name(self):
+        return self.spec["image_spec_header"]["kernel_name"]
 
     def main(self) -> bool:
         """Main execution method."""
@@ -76,21 +84,18 @@ class NotebookCurator:
         if not notebook_paths:
             return False
 
-        # Extract imports
-        test_imports = self.notebook_processor.extract_imports(notebook_paths)
-        if not test_imports:
-            return False
-
         # Handle requirements compilation
-        if not self._handle_requirements_compilation(notebook_paths):
-            return False
-
-        # Update spec file if requested
-        if self.config.revise_spec_file:
+        if self._handle_requirements_compilation(notebook_paths):
+            # Extract imports
+            test_imports = self.notebook_processor.extract_imports(notebook_paths)
+            if not test_imports:
+                return False
             if not self._revise_spec_file(notebook_paths, test_imports):
                 return False
+        else:
+            return False
 
-        # Install packages if requested
+        # Install packages if requested; test imports implied
         if self.config.install:
             if not self._install_and_test_packages(test_imports):
                 return False
@@ -102,8 +107,7 @@ class NotebookCurator:
 
         if self.config.inject_spi:
             self.injector.inject(
-                self.spec,
-                self.spi_path,
+                self.spec
             )
 
         # Cleanup if requested
@@ -147,8 +151,7 @@ class NotebookCurator:
             nb_repo = entry.get("nb_repo", repo_urls[0])
             if nb_repo not in repo_urls:
                 repo_urls.append(nb_repo)
-        if self.config.inject_spi:
-            repo_urls.append(self.injector.url)
+        repo_urls.append(self.injector.url)
         # Setup repositories
         if not self.repo_manager.setup_repositories(repo_urls):
             return False
@@ -166,6 +169,9 @@ class NotebookCurator:
         )
 
         requirements_files = compiler.find_requirements_files(notebook_paths)
+        requirements_files += self.injector.find_spi_pip_requirements_files(
+            self.deployment_name, self.kernel_name
+        )
 
         if self.config.compile:
             # Compile requirements
@@ -179,16 +185,24 @@ class NotebookCurator:
             if not package_versions:
                 return False
 
-            # Generate conda spec
-            conda_spec = compiler.generate_conda_spec(
-                self.spec["image_spec_header"]["image_name"]
+            mamba_files = []
+            mamba_files += self.injector.find_spi_mamba_requirements_files(
+                self.deployment_name, self.kernel_name
+            )
+            # Generate mamba spec
+            mamba_spec = compiler.generate_mamba_spec(
+                self.spec["image_spec_header"]["image_name"],
+                mamba_files,
             )
 
             # Store results in spec
             if "out" not in self.spec:
                 self.spec["out"] = {}
+
             self.spec["out"]["package_versions"] = package_versions
-            self.spec["out"]["conda_spec"] = conda_spec
+            self.spec["out"]["mamba_spec"] = mamba_spec
+            self.spec["out"]["pip_requirements_files"] = [str(f) for f in requirements_files]
+            self.spec["out"]["mamba_requirements_files"] = [str(m) for m in mamba_files]
 
         return True
 
@@ -217,10 +231,7 @@ class NotebookCurator:
     def _revise_spec_file(self, notebook_paths: List[str], test_imports: dict) -> bool:
         """Update the spec file with computed outputs."""
         try:
-            # Backup original file
-            shutil.copy(self.config.spec_file, f"{self.config.spec_file}.bak")
-
-            self.logger.info(f"Revising spec file {self.config.spec_file}")
+            self.logger.info(f"Revising spec file {self.config.spec_file} --> {self.config.spec_file_out}")
 
             # Update spec with outputs
             if "out" not in self.spec:
@@ -236,17 +247,11 @@ class NotebookCurator:
             yaml.preserve_quotes = True
             yaml.indent(mapping=2, sequence=4, offset=2)
 
-            with open(self.config.spec_file, "w") as f:
+            with open(self.config.spec_file_out, "w") as f:
                 yaml.dump(self.spec, f)
 
-            # Remove backup
-            os.remove(f"{self.config.spec_file}.bak")
-            return True
-
+            return self.logger.info(f"Revised spec file written to {self.config.spec_file_out}")
         except Exception as e:
-            # Restore backup on error
-            if os.path.exists(f"{self.config.spec_file}.bak"):
-                shutil.copy(f"{self.config.spec_file}.bak", self.config.spec_file)
             return self.logger.exception(e, f"Error revising spec file: {e}")
 
     def _get_moniker(self) -> str:

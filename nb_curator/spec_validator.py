@@ -18,6 +18,8 @@ class SpecValidator:
             "python_version",
             "nb_repo",
             "root_nb_directory",
+            "deployment_name",
+            "kernel_name",
         ],
         "selected_notebooks": [
             "nb_repo",
