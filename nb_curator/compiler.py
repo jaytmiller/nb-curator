@@ -66,9 +66,8 @@ class RequirementsCompiler:
                         package_versions.append(line)
         return package_versions
 
-    def generate_mamba_spec(self, image_name: str, mamba_files: List[str]) -> dict:
+    def generate_mamba_spec(self, kernel_name: str, mamba_files: List[str]) -> dict:
         """Generate mamba environment specification."""
-        moniker = image_name.replace(" ", "-").lower()
         dependencies = [
                 f"python={self.python_version}" if self.python_version else "python",
         ]
@@ -76,7 +75,7 @@ class RequirementsCompiler:
         dependencies += spi_packages
         dependencies += [{"pip": []},]
         return {
-            "name": moniker,
+            "name": kernel_name,
             "channels": ["conda-forge"],
             "dependencies": dependencies
         }

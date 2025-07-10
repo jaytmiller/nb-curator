@@ -31,8 +31,8 @@ def parse_args():
     parser.add_argument(
         "--repos-dir",
         type=str,
-        default="./repos",
-        help="Directory to store/locate cloned repos",
+        default="./references",
+        help="Directory to store/locate cloned repos;  unlike git-sync,  these are writable.",
     )
     parser.add_argument(
         "--clone",

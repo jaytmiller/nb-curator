@@ -174,6 +174,16 @@ class NotebookCurator:
         )
 
         if self.config.compile:
+            mamba_files = []
+            mamba_files += self.injector.find_spi_mamba_requirements_files(
+                self.deployment_name, self.kernel_name
+            )
+            # Generate mamba spec
+            mamba_spec = compiler.generate_mamba_spec(
+                self.spec["image_spec_header"]["kernel_name"],
+                mamba_files,
+            )
+
             # Compile requirements
             output_file = (
                 self.config.output_dir / f"{self._get_moniker()}-compile-output.txt"
@@ -184,16 +194,6 @@ class NotebookCurator:
 
             if not package_versions:
                 return False
-
-            mamba_files = []
-            mamba_files += self.injector.find_spi_mamba_requirements_files(
-                self.deployment_name, self.kernel_name
-            )
-            # Generate mamba spec
-            mamba_spec = compiler.generate_mamba_spec(
-                self.spec["image_spec_header"]["image_name"],
-                mamba_files,
-            )
 
             # Store results in spec
             if "out" not in self.spec:
