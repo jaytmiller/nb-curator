@@ -203,7 +203,9 @@ class NotebookCurator:
             self.spec["out"]["mamba_spec"] = mamba_spec
             self.spec["out"]["pip_requirements_files"] = [str(f) for f in requirements_files]
             self.spec["out"]["mamba_requirements_files"] = [str(m) for m in mamba_files]
-
+            notebook_repos = list(self.repos_to_setup)
+            notebook_repos.remove(self.injector.url)
+            self.spec["out"]["repository_urls"] = [str(r) for r in notebook_repos]
         return True
 
     def _install_and_test_packages(self, test_imports: dict) -> bool:
