@@ -1,3 +1,69 @@
-#! /bin/sh
+#! /bin/bash
 
-python -m nb_curator $*
+function setup_env {
+    export MM="$HOME/.nb-curator/mm"
+    export MAMBA_ROOT_PREFIX=${MM}
+    export PATH=${MM}/bin:${PATH}
+    export PATH=${MM}/envs/nbcurator/bin:${PATH}
+}
+
+function bootstrap {
+    export OS=$(uname -s | awk '{ print tolower($1); } ')
+    export ARCH=$(uname -m | awk '{ print tolower($1); }')
+    case "$OS-$ARCH" in
+	linux-x86_64)
+	    URL=https://micro.mamba.pm/api/micromamba/linux-64/latest
+	    ;;
+	linux-arm|linux-arm64|linux-aarch64)
+	    URL=https://micro.mamba.pm/api/micromamba/linux-aarch64/latest
+	    ;;
+	darwin-x86_64)
+	    URL=https://micro.mamba.pm/api/micromamba/osx-64/latest
+	    ;;
+	darwin-arm64)
+	    URL=https://micro.mamba.pm/api/micromamba/osx-arm64/latest
+	    ;;
+	*) 
+	    ;;
+    esac
+    
+    # Git OS/CPU-specific micromamba binary
+    mkdir -p ${MM}
+    cd ${MM}
+    curl -Ls $URL | tar -xvj bin/micromamba
+
+    eval "$($MM/bin/micromamba shell hook --shell bash)"
+
+    micromamba config append channels conda-forge
+    micromamba config set channel_priority strict
+    micromamba self-update
+    
+    micromamba activate  # this activates the base environment
+    micromamba create -n nbcurator -c conda-forge
+    micromamba activate nbcurator
+    micromamba install --yes python=3.11 pip mamba ruamel.yaml uv papermill setuptools ipykernel -c conda-forge
+}
+
+if [ $# -eq 0 ]; then
+    echo "usage: nb-curator 'bootstrap' or  <yaml-spec> switches..."
+    exit 2
+fi
+
+setup_env
+case $1 in
+    boot*)
+	shift;
+	bootstrap;
+	;;
+    setup)
+	eval "$($MM/bin/micromamba shell hook --shell bash)"
+	micromamba activate nbcurator
+	;;
+    *)
+	eval "$($MM/bin/micromamba shell hook --shell bash)"
+	micromamba activate nbcurator
+	python -m nb_curator $*
+	;;	
+esac
+
+
