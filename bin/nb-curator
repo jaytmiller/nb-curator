@@ -28,9 +28,7 @@ function bootstrap {
     esac
     
     # Git OS/CPU-specific micromamba binary
-    mkdir -p ${MM}
-    cd ${MM}
-    curl -Ls $URL | tar -xvj bin/micromamba
+    ( mkdir -p ${MM}; cd ${MM}; curl -Ls $URL | tar -xvj bin/micromamba )
 
     eval "$($MM/bin/micromamba shell hook --shell bash)"
 
@@ -41,7 +39,8 @@ function bootstrap {
     micromamba activate  # this activates the base environment
     micromamba create -n nbcurator -c conda-forge
     micromamba activate nbcurator
-    micromamba install --yes python=3.11 pip mamba ruamel.yaml uv papermill setuptools ipykernel -c conda-forge
+    micromamba install --yes python=3.11 pip mamba uv ruamel.yaml papermill setuptools ipykernel jupyter -c conda-forge
+    micromamba run -n nbcurator pip install .
 }
 
 if [ $# -eq 0 ]; then
@@ -53,6 +52,7 @@ setup_env
 case $1 in
     boot*)
 	shift;
+	rm -rf ${MM}
 	bootstrap;
 	;;
     setup)

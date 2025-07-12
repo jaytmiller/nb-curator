@@ -12,6 +12,47 @@ Jupyter notebook Docker images in a CI/CD pipeline enabling curators to deploy
 science platform notebook images with minimal interaction with platform
 administrators.
 
+## Precusor
+
+It has to be said that we're on somewhat shaky ground by initially
+side-stepping Docker for the sake of easing the curation process.  On
+the other hand, I don't think we're really tackling massive
+portability issues the astronomical community at large is not already
+familiar with.  To the extent that native micromamba and mamba
+installs of our requirements work, and the resolved dependencies are
+portable... this has a good chance of providing a solid workflow to
+feed our Docker builds.  Indeed, this workflow will include any
+generic requirements being imposed by the science platform for a
+curator to see and resolve or start working in real time...  before
+even tangling with real Docker builds.  The final caveat though is
+that the Docker image is a different environment so unforseen gotchas
+may arise and this process may need a corresponding overhaul.
+
+There are a couple of relatively new foundational tools being used here:
+
+- micromamba -- a self-contained little brother of mamba (the better free OSS version of conda)
+- uv -- a whole new installation system written in Rust which can be pip installed == fast dependency solutions? fast installs?
+
+The intent of `nb-curator` is to install 2-3 dedicated environments under `$HOME/.nb-curator`:
+
+- micromamba -- self-contained minimalistic install tool, not a base environment 
+- nbcurator  -- a true micromamba environment in which nb-curator runs with required dependencies
+- <target environment> -- the mamba environment we're curating defined by the YAML spec (or, possibly, CLI)
+
+## Installing
+
+Bootstrapping the system will create the .nb-curator dir and nbcurator environment under $HOME.
+
+```
+git clone git+https://github.com/spacetelescope/nb-curator
+cd nb-curator
+bin/nb-curator bootstrap
+```
+
+After that, the environment can be activated using:
+
+XXXXX
+
 ## Example Usage
 
 Curator prepares custom version of prototype_protocol.yaml
