@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from .logging import CuratorLogger
 
+# from ruamel.yaml import YAML
 
 class RequirementsCompiler:
     """Compiles and resolves package requirements."""
@@ -13,14 +14,12 @@ class RequirementsCompiler:
     def __init__(
         self,
         logger: CuratorLogger,
-        python_program: str,
+        micromamba_path: str,
         python_version: str,
-        verbose: bool = False,
     ):
         self.logger = logger
-        self.python_program = python_program
+        self.micromamba_path = micromamba_path
         self.python_version = python_version
-        self.verbose = verbose
 
     def find_requirements_files(self, notebook_paths: List[str]) -> List[Path]:
         """Find requirements.txt files in notebook directories."""
@@ -45,8 +44,10 @@ class RequirementsCompiler:
 
         self.logger.info("Compiling requirements to determine package versions")
 
+        # Writes out a requirements.txt file with pinned versions to output_path
         if not self._run_uv_compile(output_path, requirements_files):
-            self._log_compilation_failure(requirements_files)
+            self.logger.error("========== Failed compiling requirements ==========")
+            self.logger.error(self._annotated_requirements(requirements_files))
             return None
 
         package_versions = self.read_package_versions([output_path])
@@ -66,19 +67,36 @@ class RequirementsCompiler:
                         package_versions.append(line)
         return package_versions
 
-    def generate_mamba_spec(self, kernel_name: str, mamba_files: List[str]) -> dict:
+    def _annotated_requirements(self, requirements_files: List[Path]) -> str:
+        """Create annotated requirements listing."""
+        result = []
+        for req_file in requirements_files:
+            with open(req_file, "r") as f:
+                for pkgdep in f.read().splitlines():
+                    if pkgdep and not pkgdep.startswith("#"):
+                        result.append((pkgdep, str(req_file)))   # note difference
+
+        result = sorted(result)
+        return "\n".join(f"{pkg:<20}  : {path:<55}" for pkg, path in result)
+
+    def generate_mamba_spec(self, kernel_name: str, mamba_files: List[str], output_path: Path) -> dict:
         """Generate mamba environment specification."""
         dependencies = [
-                f"python={self.python_version}" if self.python_version else "python",
+                f"python={self.python_version}" if self.python_version else "3",
         ]
         spi_packages = self.read_package_versions(mamba_files)
         dependencies += spi_packages
         dependencies += [{"pip": []},]
-        return {
+        mamba_spec = {
             "name": kernel_name,
             "channels": ["conda-forge"],
             "dependencies": dependencies
         }
+        from ruamel.yaml import YAML
+        yaml = YAML()
+        with output_path.open("w") as f:
+            yaml.dump(mamba_spec, f)
+        return spec
 
     def _run_uv_compile(
         self, output_file: Path, requirements_files: List[Path]
@@ -91,17 +109,17 @@ class RequirementsCompiler:
             "--output-file",
             str(output_file),
             "--no-header",
-            "--python",
-            self.python_program,
+            "--mamba_program",
+            self.mamba_program,
             "--python-version",
             self.python_version,
             "--annotate",
         ] + [str(f) for f in requirements_files]
 
-        if self.verbose:
+        if self.logger.verbose:
             cmd.append("--verbose")
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = self.(cmd, check=False)
 
         if result.returncode != 0:
             self.logger.error(f"uv compile failed: {result.stderr}")
@@ -109,19 +127,3 @@ class RequirementsCompiler:
 
         return True
 
-    def _log_compilation_failure(self, requirements_files: List[Path]):
-        """Log detailed information about compilation failure."""
-        self.logger.error("========== Failed compiling requirements ==========")
-        self.logger.error(self._annotated_requirements(requirements_files))
-
-    def _annotated_requirements(self, requirements_files: List[Path]) -> str:
-        """Create annotated requirements listing."""
-        result = []
-        for req_file in requirements_files:
-            with open(req_file, "r") as f:
-                for pkgdep in f.read().splitlines():
-                    if pkgdep and not pkgdep.startswith("#"):
-                        result.append((pkgdep, str(req_file)))
-
-        result = sorted(result)
-        return "\n".join(f"{pkg:<20}  : {path:<55}" for pkg, path in result)

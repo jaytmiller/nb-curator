@@ -17,10 +17,10 @@ def parse_args():
         "spec_file", type=str, help="Path to the YAML specification file."
     )
     parser.add_argument(
-        "--python-program",
+        "--micromamba-path",
         type=str,
         default=sys.executable,
-        help="Path to python program to use for installation and test",
+        help="Path to micromamba program to use for curator and target environments.",
     )
     parser.add_argument(
         "--output-dir",
@@ -44,7 +44,14 @@ def parse_args():
         default=None,
         const="base",
         nargs="?",
-        help="Initialize the environment before processing notebooks",
+        help="Initialize the target environment before curation run.",
+    )
+    parser.add_argument(
+        "--delete-env",
+        default=None,
+        const="base",
+        nargs="?",
+        help="Delete the target environment after curation run.",
     )
     parser.add_argument(
         "-c",
@@ -116,6 +123,7 @@ def main():
     # Create configuration
     config = CuratorConfig(
         spec_file=args.spec_file,
+        micromamba_path=args.micromamba_path,
         python_program=args.python_program,
         output_dir=args.output_dir,
         repos_dir=args.repos_dir,

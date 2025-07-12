@@ -1,10 +1,10 @@
 """YAML specification validation."""
 
 from typing import Dict, List, Any
-from ruamel.yaml import YAML
 
 from .logging import CuratorLogger
 
+# from ruamel.yaml import YAML
 
 class SpecValidator:
     """Validates notebook specification files."""
@@ -36,6 +36,7 @@ class SpecValidator:
 
     def load_spec(self, spec_file: str) -> bool:
         """Load YAML specification file."""
+        from ruamel.yaml import YAML
         try:
             yaml = self._get_yaml()
             with open(spec_file, "r") as f:

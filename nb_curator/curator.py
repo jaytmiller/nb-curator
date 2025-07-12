@@ -29,7 +29,7 @@ class NotebookCurator:
             config.repos_dir, self.logger, config.clone
         )
         self.notebook_processor = NotebookProcessor(self.logger)
-        self.env_manager = EnvironmentManager(self.logger, config.python_program)
+        self.env_manager = EnvironmentManager(self.logger, config.micromamba_path)
         self.tester = NotebookTester(
             self.logger, config.environment, config.jobs, config.timeout
         )
@@ -85,7 +85,8 @@ class NotebookCurator:
             return False
 
         # Handle requirements compilation
-        if self._handle_requirements_compilation(notebook_paths):
+        if self.config.compile:
+            self._handle_requirements_compilation(notebook_paths)
             # Extract imports
             test_imports = self.notebook_processor.extract_imports(notebook_paths)
             if not test_imports:
@@ -93,7 +94,7 @@ class NotebookCurator:
             if not self._revise_spec_file(notebook_paths, test_imports):
                 return False
         else:
-            return False
+            test_imports = self.spec["out"]["test_imports"]
 
         # Install packages if requested; test imports implied
         if self.config.install:
@@ -146,7 +147,6 @@ class NotebookCurator:
         """Setup all required repositories."""
         # Collect repository URLs
         repo_urls = [self.spec["image_spec_header"]["nb_repo"]]
-
         for entry in self.spec["selected_notebooks"]:
             nb_repo = entry.get("nb_repo", repo_urls[0])
             if nb_repo not in repo_urls:
@@ -163,8 +163,8 @@ class NotebookCurator:
         """Handle requirements compilation workflow."""
         compiler = RequirementsCompiler(
             self.logger,
-            self.config.python_program,
-            str(self.spec["image_spec_header"]["python_version"]),
+            self.config.micromamba_path,
+            self.spec["image_spec_header"]["python_version"],
             self.config.verbose,
         )
 
@@ -172,40 +172,43 @@ class NotebookCurator:
         requirements_files += self.injector.find_spi_pip_requirements_files(
             self.deployment_name, self.kernel_name
         )
+        mamba_files = []
+        mamba_files += self.injector.find_spi_mamba_requirements_files(
+            self.deployment_name, self.kernel_name
+        )
 
-        if self.config.compile:
-            mamba_files = []
-            mamba_files += self.injector.find_spi_mamba_requirements_files(
-                self.deployment_name, self.kernel_name
-            )
-            # Generate mamba spec
-            mamba_spec = compiler.generate_mamba_spec(
-                self.spec["image_spec_header"]["kernel_name"],
-                mamba_files,
-            )
+        # Generate mamba spec for environment
+        kernel_name = self.kernel_name
+        mamba_spec_outfile=self.config.output_dir / self.kernel_name + ".yml"
+        mamba_spec = compiler.generate_mamba_spec(
+            kernel_name,
+            mamba_files,
+            mamba_spec_outfile
+        )
 
-            # Compile requirements
-            output_file = (
-                self.config.output_dir / f"{self._get_moniker()}-compile-output.txt"
-            )
-            package_versions = compiler.compile_requirements(
-                requirements_files, output_file
-            )
+        # Compile requirements
+        pip_output_file = (
+            self.config.output_dir / f"{self._get_moniker()}-compile-output.txt"
+        )
+        package_versions = compiler.compile_requirements(
+            requirements_files, pip_output_file
+        )
 
-            if not package_versions:
-                return False
+        if not package_versions:
+            return False
 
-            # Store results in spec
-            if "out" not in self.spec:
-                self.spec["out"] = {}
+        # Store results in spec
+        if "out" not in self.spec:
+            self.spec["out"] = {}
 
-            self.spec["out"]["package_versions"] = package_versions
-            self.spec["out"]["mamba_spec"] = mamba_spec
-            self.spec["out"]["pip_requirements_files"] = [str(f) for f in requirements_files]
-            self.spec["out"]["mamba_requirements_files"] = [str(m) for m in mamba_files]
-            notebook_repos = list(self.repos_to_setup)
-            notebook_repos.remove(self.injector.url)
-            self.spec["out"]["repository_urls"] = [str(r) for r in notebook_repos]
+        self.spec["out"]["package_versions"] = package_versions
+        self.spec["out"]["mamba_spec"] = mamba_spec
+        self.spec["out"]["pip_requirements_files"] = [str(f) for f in requirements_files]
+        self.spec["out"]["mamba_requirements_files"] = [str(m) for m in mamba_files]
+        notebook_repos = list(self.repos_to_setup)
+        notebook_repos.remove(self.injector.url)
+        self.spec["out"]["repository_urls"] = [str(r) for r in notebook_repos]
+
         return True
 
     def _install_and_test_packages(self, test_imports: dict) -> bool:

@@ -12,7 +12,7 @@ class CuratorConfig:
     """Configuration class for NotebookCurator."""
 
     spec_file: str
-    python_program: str = sys.executable
+    micromamba_path: str = "micromamba"
     output_dir: str = "./output"
     repos_dir: Optional[str] = None
     verbose: bool = False
@@ -26,6 +26,7 @@ class CuratorConfig:
     timeout: int = 300
     environment: str = "base"
     init_env: bool = False
+    wipe_env: bool = False
     clone: bool = None
     inject_spi: bool = False
 
