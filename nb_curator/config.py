@@ -14,20 +14,26 @@ class CuratorConfig:
     spec_file: str
     micromamba_path: str = "micromamba"
     output_dir: str = "./output"
+
     repos_dir: Optional[str] = None
+    clone_repos: bool = None
+    delete_repos: bool = False
+
     verbose: bool = False
     debug: bool = False
-    cleanup: bool = False
+
     compile: bool = False
     no_simplify_paths: bool = False
+
+    init_target_environment: bool = False
+    delete_target_environment: bool = False
+
     install: bool = False
-    test: bool = False
+
+    test_notebooks: bool = False
     jobs: int = 1
     timeout: int = 300
-    environment: str = "base"
-    init_env: bool = False
-    wipe_env: bool = False
-    clone: bool = None
+
     inject_spi: bool = False
 
     def __post_init__(self):

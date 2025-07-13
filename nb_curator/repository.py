@@ -15,10 +15,11 @@ class RepositoryManager:
     
     """
 
-    def __init__(self, repos_dir: Path, logger: CuratorLogger, clone: bool = False):
+    def __init__(self, repos_dir: Path, logger: CuratorLogger, clone: bool = False, env_manager: EnvironmentManager | None = None):
         self.repos_dir = repos_dir
         self.logger = logger
         self.clone = clone
+        self.env_manager = env_manager
         self.repos_to_setup: Dict[str, Optional[Path]] = {}
 
     def setup_repositories(self, repo_urls: list[str]) -> bool:
@@ -26,8 +27,6 @@ class RepositoryManager:
         self.repos_to_setup = {url: None for url in repo_urls}
         for repo_url in repo_urls:
             if not self.clone:
-                if repo_url.startswith("file://"):
-                    repo_url = repo_url.replace("file://", "")
                 repo_path = self._setup_local_repo(repo_url)
             else:
                 repo_path = self._setup_remote_repo(repo_url)
@@ -49,52 +48,22 @@ class RepositoryManager:
         """Set up a remote repository by cloning or updating."""
         repo_name = repo_url.split("/")[-1].replace(".git", "")
         repo_dir = self.repos_dir / repo_name
-        if not self.clone:
-            if repo_dir.exists():
-                self.logger.info(f"Using existing repository at {repo_dir}")
-                return repo_dir
-            else:
-                self.logger.error(
-                    f"Repository not found and cloning disabled: {repo_dir}"
-                )
-                return None
-        return self._clone_or_update_repo(repo_url, repo_dir)
-
-    def _clone_or_update_repo(self, repo_url: str, repo_dir: Path) -> Optional[Path]:
-        """Clone or update a repository."""
-        try:
-            if repo_dir.exists():
-                return self._update_repo(repo_dir)
-            else:
+        if repo_dir.exists():
+            self.logger.info(f"Using existing repository at {repo_dir}")
+            return repo_dir
+        else:
+            try:
                 return self._clone_repo(repo_url, repo_dir)
-        except Exception as e:
-            self.logger.exception(e, f"Failed to setup repository {repo_url}")
-            return None
-
-    def _update_repo(self, repo_dir: Path) -> Path:
-        """Update an existing repository."""
-        self.logger.info(f"Updating repository at {repo_dir}")
-        try:
-            subprocess.run(
-                ["git", "-C", str(repo_dir), "pull"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            self.logger.info(f"Successfully updated repository at {repo_dir}")
-        except subprocess.CalledProcessError as e:
-            self.logger.warning(f"Failed to update repository: {e.stderr}")
-            self.logger.warning("Continuing with existing version")
-        return repo_dir
+            except Exception as e:
+                self.logger.exception(e, f"Failed to setup repository {repo_url}")
+                return None
 
     def _clone_repo(self, repo_url: str, repo_dir: Path) -> Path:
         """Clone a new repository."""
         self.logger.info(f"Cloning repository {repo_url} to {repo_dir}")
-        subprocess.run(
+        self.env_manager.curator_run(
             ["git", "clone", "--single-branch", repo_url, str(repo_dir)],
             check=True,
-            capture_output=True,
-            text=True,
             timeout=300,
         )
         self.logger.info(f"Successfully cloned repository to {repo_dir}")

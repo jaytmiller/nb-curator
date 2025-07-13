@@ -1,13 +1,12 @@
 """Main NotebookCurator class orchestrating the curation process."""
 
 import os
-import shutil
 from pathlib import Path
 from typing import List, Optional
 
 from .config import CuratorConfig
 from .logging import CuratorLogger
-from .spec_validator import SpecValidator
+from .spec_manager import SpecManager
 from .repository import RepositoryManager
 from .processor import NotebookProcessor
 from .environment import EnvironmentManager
@@ -22,34 +21,44 @@ class NotebookCurator:
     def __init__(self, config: CuratorConfig):
         self.config = config
         self.logger = CuratorLogger(config.verbose, config.debug)
-
-        # Initialize components
-        self.validator = SpecValidator(self.logger)
+        self.spec_manager = SpecManager.load_and_validate(
+            self.config.spec_file, self.logger
+        )
+        self.env_manager = EnvironmentManager(
+            self.logger, self.config.micromamba_path, self.spec_manager.python_version
+        )
         self.repo_manager = RepositoryManager(
-            config.repos_dir, self.logger, config.clone
+            config.repos_dir, self.logger, config.clone, self.env_manager
         )
         self.notebook_processor = NotebookProcessor(self.logger)
-        self.env_manager = EnvironmentManager(self.logger, config.micromamba_path)
         self.tester = NotebookTester(
             self.logger, config.environment, config.jobs, config.timeout
         )
-        self.injector = get_injector(self.logger, config.repos_dir)
+        self.compiler = RequirementsCompiler(
+            self.logger, self.env_manager)
+                compiler = RequirementsCompiler(
+            self.logger,
+            self.config.micromamba_path,
+            self.spec_manager.python_version,
+            self.config.verbose,
+        )
+
+
 
         # Create output directories
         os.makedirs(config.output_dir, exist_ok=True)
         os.makedirs(config.repos_dir, exist_ok=True)
 
         # State variables
-        self.spec = {}
         self.repos_to_setup = {}
 
     @property
     def deployment_name(self):
-        return self.spec["image_spec_header"]["deployment_name"]
+        return self.spec_manager.deployment_name if self.spec_manager else None
 
     @property
     def kernel_name(self):
-        return self.spec["image_spec_header"]["kernel_name"]
+        return self.spec_manager.kernel_name if self.spec_manager else None
 
     def main(self) -> bool:
         """Main execution method."""
@@ -60,11 +69,7 @@ class NotebookCurator:
 
     def _execute_workflow(self) -> bool:
         """Execute the complete curation workflow."""
-        # Initialize environment if requested
-        if self.config.init_env:
-            if not self.env_manager.initialize_environment(self.config.environment):
-                return False
-
+        
         # Load and validate specification
         if not self._load_and_validate_spec():
             return False
@@ -73,13 +78,16 @@ class NotebookCurator:
         if not self._check_python_version():
             return False
 
-        # Setup repositories
-        if not self._setup_repositories():
+        # Setup repositories if cloning requested.  Otherwise assume clones exist as needed
+        spec_repo_urls = self.spec_manager.get_repository_urls()
+        spi_repo_urls = self.injector.repository_urls
+        repo_urls = spec_repo_urls + spi_repo_urls
+        if not self._setup_repositories(repo_urls):
             return False
 
         # Process notebooks
         notebook_paths = self.notebook_processor.collect_notebook_paths(
-            self.spec, self.repos_to_setup
+            self.spec_manager.to_dict(), self.repos_to_setup
         )
         if not notebook_paths:
             return False
@@ -94,9 +102,16 @@ class NotebookCurator:
             if not self._revise_spec_file(notebook_paths, test_imports):
                 return False
         else:
-            test_imports = self.spec["out"]["test_imports"]
+            test_imports = self.spec_manager.get_output_data("test_imports", {})
+            notebook_paths = self.spec.get_output_data("test_notebooks", {})
 
-        # Install packages if requested; test imports implied
+        # Initialize target environment if requested;  we assume nb-curator is running in nbcurator bootstrap environment or equivalent
+        if self.config.init_target_environment:
+            if not self.env_manager.initialize_environment(
+                self.config.environment, self.micromamba_path):
+                return False
+
+        # Install packages if requested
         if self.config.install:
             if not self._install_and_test_packages(test_imports):
                 return False
@@ -107,9 +122,7 @@ class NotebookCurator:
                 return False
 
         if self.config.inject_spi:
-            self.injector.inject(
-                self.spec
-            )
+            self.injector.inject(self.spec_manager.to_dict())
 
         # Cleanup if requested
         if self.config.cleanup:
@@ -120,75 +133,34 @@ class NotebookCurator:
 
     def _load_and_validate_spec(self) -> bool:
         """Load and validate the specification file."""
-        if not self.validator.load_spec(self.config.spec_file):
-            return False
-
-        if not self.validator.validate_spec():
-            return False
-
-        self.spec = self.validator.spec
-        return True
+        return self.spec_manager is not None
 
     def _check_python_version(self) -> bool:
         """Check Python version compatibility."""
-        requested_version = self._get_requested_python_version()
+        requested_version = self.spec_manager.get_python_version_list()
         return self.env_manager.check_python_version(requested_version)
-
-    def _get_requested_python_version(self) -> List[int]:
-        """Extract requested Python version from spec."""
-        version_str = self.spec["image_spec_header"]["python_version"]
-        if isinstance(version_str, (int, float)):
-            version_str = str(version_str)
-        if not isinstance(version_str, str):
-            raise ValueError("Invalid python_version in spec file")
-        return list(map(int, version_str.split(".")))
-
-    def _setup_repositories(self) -> bool:
-        """Setup all required repositories."""
-        # Collect repository URLs
-        repo_urls = [self.spec["image_spec_header"]["nb_repo"]]
-        for entry in self.spec["selected_notebooks"]:
-            nb_repo = entry.get("nb_repo", repo_urls[0])
-            if nb_repo not in repo_urls:
-                repo_urls.append(nb_repo)
-        repo_urls.append(self.injector.url)
-        # Setup repositories
-        if not self.repo_manager.setup_repositories(repo_urls):
-            return False
-
-        self.repos_to_setup = self.repo_manager.repos_to_setup
-        return True
 
     def _handle_requirements_compilation(self, notebook_paths: List[str]) -> bool:
         """Handle requirements compilation workflow."""
-        compiler = RequirementsCompiler(
-            self.logger,
-            self.config.micromamba_path,
-            self.spec["image_spec_header"]["python_version"],
-            self.config.verbose,
-        )
-
         requirements_files = compiler.find_requirements_files(notebook_paths)
         requirements_files += self.injector.find_spi_pip_requirements_files(
-            self.deployment_name, self.kernel_name
+            self.spec_manager.deployment_name, self.spec_manager.kernel_name
         )
         mamba_files = []
         mamba_files += self.injector.find_spi_mamba_requirements_files(
-            self.deployment_name, self.kernel_name
+            self.spec_manager.deployment_name, self.spec_manager.kernel_name
         )
 
         # Generate mamba spec for environment
-        kernel_name = self.kernel_name
-        mamba_spec_outfile=self.config.output_dir / self.kernel_name + ".yml"
+        kernel_name = self.spec_manager.kernel_name
+        mamba_spec_outfile = self.config.output_dir / f"{kernel_name}.yml"
         mamba_spec = compiler.generate_mamba_spec(
-            kernel_name,
-            mamba_files,
-            mamba_spec_outfile
+            kernel_name, mamba_files, mamba_spec_outfile
         )
 
         # Compile requirements
         pip_output_file = (
-            self.config.output_dir / f"{self._get_moniker()}-compile-output.txt"
+            self.config.output_dir / f"{self.spec_manager.get_moniker()}-compile-output.txt"
         )
         package_versions = compiler.compile_requirements(
             requirements_files, pip_output_file
@@ -198,16 +170,13 @@ class NotebookCurator:
             return False
 
         # Store results in spec
-        if "out" not in self.spec:
-            self.spec["out"] = {}
-
-        self.spec["out"]["package_versions"] = package_versions
-        self.spec["out"]["mamba_spec"] = mamba_spec
-        self.spec["out"]["pip_requirements_files"] = [str(f) for f in requirements_files]
-        self.spec["out"]["mamba_requirements_files"] = [str(m) for m in mamba_files]
+        self.spec_manager.set_output_data("package_versions", package_versions)
+        self.spec_manager.set_output_data("mamba_spec", mamba_spec)
+        self.spec_manager.set_output_data("pip_requirements_files", [str(f) for f in requirements_files])
+        self.spec_manager.set_output_data("mamba_requirements_files", [str(m) for m in mamba_files])
         notebook_repos = list(self.repos_to_setup)
         notebook_repos.remove(self.injector.url)
-        self.spec["out"]["repository_urls"] = [str(r) for r in notebook_repos]
+        self.spec_manager.set_output_data("repository_urls", [str(r) for r in notebook_repos])
 
         return True
 

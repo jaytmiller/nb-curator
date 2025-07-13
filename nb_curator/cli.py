@@ -32,26 +32,24 @@ def parse_args():
         "--repos-dir",
         type=str,
         default="./references",
-        help="Directory to store/locate cloned repos;  unlike git-sync,  these are writable.",
+        help="Directory to store/locate cloned repos; unlike git-sync, these are writable.",
     )
     parser.add_argument(
-        "--clone",
+        "--clone-repos",
         action="store_true",
-        help="Clone or update notebook repos at --repos-dir",
+        help="Clone any missing notebook repos at --repos-dir. No updates. See also --delete-repos.",
     )
     parser.add_argument(
         "--init-env",
         default=None,
         const="base",
         nargs="?",
-        help="Initialize the target environment before curation run.",
+        help="Initialize the target environment before curation run. See also --delete-env.",
     )
     parser.add_argument(
-        "--delete-env",
-        default=None,
-        const="base",
-        nargs="?",
-        help="Delete the target environment after curation run.",
+        "--curate",
+        action="store_true",
+        help="Sets options for an 'already initialized' core nb-curator workflow: --compile --install --test-notebooks",
     )
     parser.add_argument(
         "-c",
@@ -93,25 +91,37 @@ def parse_args():
         help="Timeout in seconds for notebook tests",
     )
     parser.add_argument(
+        "--inject-spi",
+        action="store_true",
+        help="Inject curation products into the Science Platform Images repo clone.",
+    )
+    parser.add_argument(
+        "--submit-for-build",
+        action="store_true",
+        help="Submit the injected curation results to the Science Platform Images GitHub repo triggering a build.",
+    )
+    parser.add_argument(
+        "--delete-repos",
+        action="store_true",
+        help="Delete repo clones after processing",
+    )
+    parser.add_argument(
+        "--delete-target-environment",
+        default=None,
+        const="base",
+        nargs="?",
+        help="Delete the target environment after curation run.",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable verbose output",
+        help="Enable DEBUG log output",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Enable debugging with pdb on errors",
-    )
-    parser.add_argument(
-        "--cleanup",
-        action="store_true",
-        help="Cleanup repo clones after processing",
-    )
-    parser.add_argument(
-        "--inject-spi",
-        action="store_true",
-        help="Inject requirements into the specified Science Platform Images deployment.",
+        help="Enable debugging with pdb on exceptions.",
     )
     return parser.parse_args()
 
@@ -124,20 +134,23 @@ def main():
     config = CuratorConfig(
         spec_file=args.spec_file,
         micromamba_path=args.micromamba_path,
-        python_program=args.python_program,
         output_dir=args.output_dir,
-        repos_dir=args.repos_dir,
         verbose=args.verbose,
         debug=args.debug,
-        cleanup=args.cleanup,
+
+        repos_dir=args.repos_dir,
+        clone_repos=args.clone_repos,
+        delete_repos=args.delete_repos,
+
+        init_target_environment=args.init_target_environment,
+        delete_target_environment=args.delete_target_environment,
+
         compile=args.compile,
         no_simplify_paths=args.no_simplify_paths,
         install=args.install,
-        test=args.test_notebooks,
+        test_notebooks=args.test_notebooks,
         jobs=args.jobs,
         timeout=args.timeout,
-        init_env=bool(args.init_env),
-        clone=args.clone,
         inject_spi=args.inject_spi,
     )
 

@@ -14,18 +14,19 @@ class RequirementsCompiler:
     def __init__(
         self,
         logger: CuratorLogger,
-        micromamba_path: str,
+        env_manager: EnvironmentManager,
+        python_path: str = sys.executable,
         python_version: str,
     ):
         self.logger = logger
-        self.micromamba_path = micromamba_path
+        self.env_manager = env_manager
+        self.python_path = python_path
         self.python_version = python_version
 
     def find_requirements_files(self, notebook_paths: List[str]) -> List[Path]:
         """Find requirements.txt files in notebook directories."""
         requirements_files = []
         notebook_dirs = {Path(nb_path).parent for nb_path in notebook_paths}
-
         for dir_path in notebook_dirs:
             req_file = dir_path / "requirements.txt"
             if req_file.exists():
@@ -38,44 +39,57 @@ class RequirementsCompiler:
     def compile_requirements(
         self, requirements_files: List[Path], output_path: Path
     ) -> Optional[List[str]]:
-        """Compile requirements files into pinned versions."""
+        """Compile requirements files into pinned versions,  outputs
+        the result to a file at `output_path` and then loads the
+        output and returns a list of package versions for insertion
+        into other commands and specs.
+        """
         if not requirements_files:
             return self.logger.warning("No requirements files to compile")
-
         self.logger.info("Compiling requirements to determine package versions")
-
-        # Writes out a requirements.txt file with pinned versions to output_path
         if not self._run_uv_compile(output_path, requirements_files):
             self.logger.error("========== Failed compiling requirements ==========")
-            self.logger.error(self._annotated_requirements(requirements_files))
+            self.logger.error(self.annotated_requirements(requirements_files))
             return None
-
         package_versions = self.read_package_versions([output_path])
-
         self.logger.info(f"Resolved {len(package_versions)} package versions")
         return package_versions
 
     def read_package_versions(self, requirements_files: List[Path]) -> List[str]:
-        """Read package versions from requirements files."""
-        # Read compiled requirements
+        """Read package versions from a list of requirements files omitting blank
+        and comment lines.
+        """
         package_versions = []
         for req_file in requirements_files:
-            with req_file.open("r") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        package_versions.append(line)
+            lines = self.read_package_lines(req_file)
+            package_versions.extend(lines)
         return package_versions
 
-    def _annotated_requirements(self, requirements_files: List[Path]) -> str:
-        """Create annotated requirements listing."""
-        result = []
-        for req_file in requirements_files:
-            with open(req_file, "r") as f:
-                for pkgdep in f.read().splitlines():
-                    if pkgdep and not pkgdep.startswith("#"):
-                        result.append((pkgdep, str(req_file)))   # note difference
+    def read_package_lines(self, requirements_file: Path) -> List[str]:
+        """Read package lines from requirements file omitting blank and comment lines.
+        Should work with most forms of requirements.txt file,
+        input or compiled,  and reduce it to a pure list of package versions.
+        """
+        lines = []
+        with open(requirements_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    lines.append(line)
+        return lines
 
+    def annotated_requirements(self, requirements_files: List[Path]) -> str:
+        """Create an annotated input requirements listing to correlate version
+        constraints with the notebooks which impose them,  primarily as an aid
+        for direct conflict resolution.   Strictly speaking this is a WIP since
+        without compiling individual notebook requirements first dependencies
+        are not included which can be where the real conflicts occur without
+        necessarily a common root import.
+        """
+         result= []
+        for req_file in requirements_files:
+            lines =  self.read_package_lines(req_file)
+            result.append([(pkgdep, str(req_file)) for pkg in lines])   # note difference
         result = sorted(result)
         return "\n".join(f"{pkg:<20}  : {path:<55}" for pkg, path in result)
 
@@ -108,22 +122,19 @@ class RequirementsCompiler:
             "compile",
             "--output-file",
             str(output_file),
-            "--no-header",
-            "--mamba_program",
-            self.mamba_program,
+            "--python",
+            self.python_path,
             "--python-version",
             self.python_version,
+            "--universal",
+            "--no-header",
             "--annotate",
+            "--constraints",
         ] + [str(f) for f in requirements_files]
 
         if self.logger.verbose:
             cmd.append("--verbose")
 
-        result = self.(cmd, check=False)
-
-        if result.returncode != 0:
-            self.logger.error(f"uv compile failed: {result.stderr}")
-            return False
-
-        return True
+        result = self.env_manager.curator_run(cmd, check=False)
+        return self.handle_result(result, f"uv compile failed:")
 

@@ -18,14 +18,15 @@ class EnvironmentManager:
         self.logger = logger
         self.micromamba_path = micromamba_path
 
-    def run(self, command: List[str], check=True) -> Optional[str]:
+    def curator_run(self, command: List[str], check=True, timeout=300, capture_output=True, text=True) -> Optional[str] | subprocess.CompetedProcess:
         """Run a command in the current environment."""
         self.logger.debug(f"Running command: {command}")
         result = subprocess.run(
             command,
-            capture_output=True,
-            text=True,
+            capture_output=capture_output,
+            text=capture_output,
             check=check,
+            timeout=timeout,
         )
         self.logger.debug(f"Command output: {result.stdout}")
         if check:
@@ -33,11 +34,32 @@ class EnvironmentManager:
         else:
             return result
 
-    def env_run(self, environment, command: List[str], check=True) -> Optional[str]:
-        """Run a command in the specified environment."""
+    def handle_result(self, result: subprocess.CompletedProcess, fail: str, success: str = ""):
+        """Provide standard handling for the check=False case of the xxx_run methods by
+        issuing a success info or fail error and returning True or False respectively
+        depending on the return code of a subprocess result.
+
+        If either the success or fail log messages (stripped) end in ":" then append
+        result.stdout or result.stderr respectively.
+        """
+        if result.returncode != 0:
+            if fail.strip().endswith(":"):
+                fail += result.stderr
+            return self.logger.error(fail)
+        else:
+            if success.strip().endswith(":"):
+                success += result.stdout
+            return self.logger.info(success) if success else True
+
+
+    def env_run(self, environment, command: List[str], **keys) -> Optional[str]:
+        """Run a command in the specified environment.
+        
+        See EnvironmentManager.run for **keys optional settings.
+        """
         self.logger.debug(f"Running command {command} in environment: {environment}")
         mm_prefix = [self.micromamba_path, "run", "-n", environment]
-        return self.run(mm_prefix + command, check=check)
+        return self.curator_run(mm_prefix + command, **keys)
 
     def initialize_environment(self, environment_name: str, mamba_spec: str) -> bool:
         """Initialize the environment for notebook processing."""
@@ -55,8 +77,7 @@ class EnvironmentManager:
         if not self._register_environment(environment_name):
             return False
 
-        self.logger.info("Environment initialization completed successfully")
-        return True
+        return self.logger.info("Environment initialization completed successfully")
 
     def create_environment(self, environment_name: str, micromamba_spec: str|None = None) -> bool:
         """Create a new environment."""
@@ -65,7 +86,7 @@ class EnvironmentManager:
             self.logger.info(f"Creating environment: {environment_name}")
             mm_prefix = [self.micromamba_path, "create", "-n", environment_name]
             command = mm_prefix + ["-c", "conda-forge"]
-            self.run(command)
+            self.curator_run(command)
         return True
 
     def _install_curator_packages(self) -> bool:
@@ -79,7 +100,7 @@ class EnvironmentManager:
         self.logger.info(f"Deleting environment: {environment_name}")
         mm_prefix = [self.micromamba_path, "env", "remove", "-n", environment_name]
         command = mm_prefix + ["--yes"]
-        return self.run(command)
+        return self.curator_run(command)
 
     def check_python_version(self, environment: str, requested_version: List[int]) -> bool:
         """Check if the current Python version matches the requested version."""
@@ -118,41 +139,22 @@ class EnvironmentManager:
         # Install packages using uv
         cmd = ["uv", "pip", "install", "-r", str(temp_req_file)]
         result = self.env_run(environment, cmd, check=False)
+        return self.handle_result(result,
+            "Package installation failed:",
+            "Package installation completed successfully:",
+        )
 
-        if result.returncode != 0:
-            self.logger.error(f"Package installation failed: {result.stderr}")
-            return False
-
-        self.logger.info("Package installation completed successfully:", "\n" + result.stdout)
-        return True
-
-    def test_imports(self, import_map: dict) -> bool:
+    def test_imports(self, environment_name:str, import_map: dict) -> bool:
         """Test package imports."""
+        python_imports = list(import_map.keys())
         self.logger.info(f"Testing {len(import_map)} imports")
-        failed_imports = []
+        result = self.env_run(environment_name, ["test-imports",] + python_imports, check=False)
+        return self.env_manager.handle_result(
+            "Failed to import notebook packages:",
+            "All imports succeeded.",
+        )
 
-        for pkg in import_map:
-            if pkg.startswith("#"):
-                continue
-
-            try:
-                self.logger.info(f"Importing {pkg} ...")
-                __import__(pkg)
-                self.logger.info(f"Importing {pkg} ... ok")
-            except Exception as exc:
-                self.logger.exception(exc, f"Failed to import {pkg}")
-                failed_imports.append(pkg)
-
-        if failed_imports:
-            self.logger.error(
-                f"Failed to import {len(failed_imports)} packages: {failed_imports}"
-            )
-            return False
-
-        self.logger.info("All imports succeeded")
-        return True
-
-    def _register_environment(self, environment_name: str) -> bool:
+    def _register_environment(self, environment_name: str, display_name=None) -> bool:
         """Register Jupyter environment for the environment.
 
         nbcurator environment should work here since it is modifying 
@@ -168,23 +170,22 @@ class EnvironmentManager:
             "--name",
             environment_name,
             "--display-name",
-            environment_name,
+            display_name or environment_name,
         ]
-        result = self.run(cmd, check=False)
-        if result.returncode != 0:
-            return self.logger.error(f"Failed to register environment {environment_name}: {result.stderr}")
-
-        return True
+        result = self.curator_run(cmd, check=False)
+        return self.handle_result(result,
+            f"Failed to register environment {environment_name}: "
+        )
 
     def _unregister_environment(self, environment_name: str) -> bool:
         """Unregister Jupyter environment for the environment."""
-
         cmd = [
             "jupyter",
             "kernelspec",
             "uninstall",
             environment_name,
         ]
-        result = self.run(cmd, check=False)
-        if result.returncode != 0:
-            return self.logger.error(f"Failed to unregister environment {environment_name}: {result.stderr}")
+        result = self.curator_run(cmd, check=False)
+        return self.handle_result(result,
+            f"Failed to unregister environment {environment_name}: "
+        )
