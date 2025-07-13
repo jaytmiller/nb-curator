@@ -9,15 +9,24 @@ from .logging import CuratorLogger
 
 class SpecManager:
     """Manages specification loading, validation, access, and persistence."""
-    
+
     ALLOWED_KEYWORDS = {
         "image_spec_header": [
-            "image_name", "description", "valid_on", "expires_on", 
-            "python_version", "nb_repo", "root_nb_directory",
-            "deployment_name", "kernel_name",
+            "image_name",
+            "description",
+            "valid_on",
+            "expires_on",
+            "python_version",
+            "nb_repo",
+            "root_nb_directory",
+            "deployment_name",
+            "kernel_name",
         ],
         "selected_notebooks": [
-            "nb_repo", "root_nb_directory", "include_subdirs", "exclude_subdirs",
+            "nb_repo",
+            "root_nb_directory",
+            "include_subdirs",
+            "exclude_subdirs",
         ],
         "out": {},
     }
@@ -29,7 +38,9 @@ class SpecManager:
         self._source_file: Optional[str] = None
 
     @classmethod
-    def load_and_validate(cls, spec_file: str, logger: CuratorLogger) -> Optional['SpecManager']:
+    def load_and_validate(
+        cls, spec_file: str, logger: CuratorLogger
+    ) -> Optional["SpecManager"]:
         """Factory method to load and validate a spec file."""
         manager = cls(logger)
         if manager.load_spec(spec_file) and manager.validate():
@@ -52,14 +63,14 @@ class SpecManager:
         """Perform comprehensive validation on the loaded specification."""
         if not self._spec:
             return self.logger.error("No specification loaded")
-            
+
         validation_result = (
             self._validate_top_level_structure()
             and self._validate_header_section()
             and self._validate_selected_notebooks_section()
             and self._validate_directory_repos()
         )
-        
+
         self._is_validated = validation_result
         return validation_result
 
@@ -74,16 +85,23 @@ class SpecManager:
         except Exception as e:
             return self.logger.exception(e, f"Error saving spec file: {e}")
 
-    def revise_and_save(self, output_file: str, notebook_paths: List[str], 
-                       test_imports: dict, **additional_outputs) -> bool:
+    def revise_and_save(
+        self,
+        output_file: str,
+        notebook_paths: List[str],
+        test_imports: dict,
+        **additional_outputs,
+    ) -> bool:
         """Update spec with computed outputs and save to file."""
         try:
-            self.logger.info(f"Revising spec file {self._source_file} --> {output_file}")
+            self.logger.info(
+                f"Revising spec file {self._source_file} --> {output_file}"
+            )
 
             # Update spec with outputs
             self.set_output_data("test_notebooks", [str(p) for p in notebook_paths])
             self.set_output_data("test_imports", list(test_imports.keys()))
-            
+
             # Add any additional output data
             for key, value in additional_outputs.items():
                 self.set_output_data(key, value)
@@ -97,27 +115,27 @@ class SpecManager:
     def deployment_name(self) -> str:
         self._ensure_validated()
         return self._spec["image_spec_header"]["deployment_name"]
-    
+
     @property
     def kernel_name(self) -> str:
         self._ensure_validated()
         return self._spec["image_spec_header"]["kernel_name"]
-    
+
     @property
     def image_name(self) -> str:
         self._ensure_validated()
         return self._spec["image_spec_header"]["image_name"]
-    
+
     @property
     def python_version(self) -> str:
         self._ensure_validated()
         return self._spec["image_spec_header"]["python_version"]
-    
+
     @property
     def nb_repo(self) -> str:
         self._ensure_validated()
         return self._spec["image_spec_header"]["nb_repo"]
-    
+
     @property
     def selected_notebooks(self) -> List[Dict[str, Any]]:
         self._ensure_validated()
@@ -132,7 +150,7 @@ class SpecManager:
             if nb_repo not in urls:
                 urls.append(nb_repo)
         return urls
-    
+
     def get_python_version_list(self) -> List[int]:
         """Extract requested Python version as list of integers."""
         version_str = self.python_version
@@ -147,7 +165,7 @@ class SpecManager:
         if "out" not in self._spec:
             self._spec["out"] = {}
         self._spec["out"][key] = value
-    
+
     def get_output_data(self, key: str, default: Any = None) -> Any:
         """Get data from the output section."""
         return self._spec.get("out", {}).get(key, default)
@@ -197,8 +215,11 @@ class SpecManager:
                 return self.logger.error(f"Unknown keyword in image_spec_header: {key}")
 
         required_fields = [
-            "image_name", "python_version", "valid_on", 
-            "expires_on", "nb_repo",
+            "image_name",
+            "python_version",
+            "valid_on",
+            "expires_on",
+            "nb_repo",
         ]
         for field in required_fields:
             if field not in header:

@@ -18,7 +18,14 @@ class EnvironmentManager:
         self.logger = logger
         self.micromamba_path = micromamba_path
 
-    def curator_run(self, command: List[str], check=True, timeout=300, capture_output=True, text=True) -> Optional[str] | subprocess.CompetedProcess:
+    def curator_run(
+        self,
+        command: List[str],
+        check=True,
+        timeout=300,
+        capture_output=True,
+        text=True,
+    ) -> Optional[str] | subprocess.CompetedProcess:
         """Run a command in the current environment."""
         self.logger.debug(f"Running command: {command}")
         result = subprocess.run(
@@ -34,7 +41,9 @@ class EnvironmentManager:
         else:
             return result
 
-    def handle_result(self, result: subprocess.CompletedProcess, fail: str, success: str = ""):
+    def handle_result(
+        self, result: subprocess.CompletedProcess, fail: str, success: str = ""
+    ):
         """Provide standard handling for the check=False case of the xxx_run methods by
         issuing a success info or fail error and returning True or False respectively
         depending on the return code of a subprocess result.
@@ -51,10 +60,9 @@ class EnvironmentManager:
                 success += result.stdout
             return self.logger.info(success) if success else True
 
-
     def env_run(self, environment, command: List[str], **keys) -> Optional[str]:
         """Run a command in the specified environment.
-        
+
         See EnvironmentManager.run for **keys optional settings.
         """
         self.logger.debug(f"Running command {command} in environment: {environment}")
@@ -79,7 +87,9 @@ class EnvironmentManager:
 
         return self.logger.info("Environment initialization completed successfully")
 
-    def create_environment(self, environment_name: str, micromamba_spec: str|None = None) -> bool:
+    def create_environment(
+        self, environment_name: str, micromamba_spec: str | None = None
+    ) -> bool:
         """Create a new environment."""
         if not micromamba_spec:
             micromamba_spec = "python=3.10"
@@ -102,7 +112,9 @@ class EnvironmentManager:
         command = mm_prefix + ["--yes"]
         return self.curator_run(command)
 
-    def check_python_version(self, environment: str, requested_version: List[int]) -> bool:
+    def check_python_version(
+        self, environment: str, requested_version: List[int]
+    ) -> bool:
         """Check if the current Python version matches the requested version."""
         self.logger.info(f"Checking Python version for environment {tess}...")
 
@@ -139,16 +151,24 @@ class EnvironmentManager:
         # Install packages using uv
         cmd = ["uv", "pip", "install", "-r", str(temp_req_file)]
         result = self.env_run(environment, cmd, check=False)
-        return self.handle_result(result,
+        return self.handle_result(
+            result,
             "Package installation failed:",
             "Package installation completed successfully:",
         )
 
-    def test_imports(self, environment_name:str, import_map: dict) -> bool:
+    def test_imports(self, environment_name: str, import_map: dict) -> bool:
         """Test package imports."""
         python_imports = list(import_map.keys())
         self.logger.info(f"Testing {len(import_map)} imports")
-        result = self.env_run(environment_name, ["test-imports",] + python_imports, check=False)
+        result = self.env_run(
+            environment_name,
+            [
+                "test-imports",
+            ]
+            + python_imports,
+            check=False,
+        )
         return self.env_manager.handle_result(
             "Failed to import notebook packages:",
             "All imports succeeded.",
@@ -157,8 +177,8 @@ class EnvironmentManager:
     def _register_environment(self, environment_name: str, display_name=None) -> bool:
         """Register Jupyter environment for the environment.
 
-        nbcurator environment should work here since it is modifying 
-        files under $HOME related to *any* jupyter environment the 
+        nbcurator environment should work here since it is modifying
+        files under $HOME related to *any* jupyter environment the
         user has.
         """
         cmd = [
@@ -173,8 +193,8 @@ class EnvironmentManager:
             display_name or environment_name,
         ]
         result = self.curator_run(cmd, check=False)
-        return self.handle_result(result,
-            f"Failed to register environment {environment_name}: "
+        return self.handle_result(
+            result, f"Failed to register environment {environment_name}: "
         )
 
     def _unregister_environment(self, environment_name: str) -> bool:
@@ -186,6 +206,6 @@ class EnvironmentManager:
             environment_name,
         ]
         result = self.curator_run(cmd, check=False)
-        return self.handle_result(result,
-            f"Failed to unregister environment {environment_name}: "
+        return self.handle_result(
+            result, f"Failed to unregister environment {environment_name}: "
         )

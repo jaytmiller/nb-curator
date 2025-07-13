@@ -8,6 +8,7 @@ from .logging import CuratorLogger
 
 # from ruamel.yaml import YAML
 
+
 class RequirementsCompiler:
     """Compiles and resolves package requirements."""
 
@@ -16,7 +17,7 @@ class RequirementsCompiler:
         logger: CuratorLogger,
         env_manager: EnvironmentManager,
         python_path: str = sys.executable,
-        python_version: str,
+        python_version: str = "3.11",
     ):
         self.logger = logger
         self.env_manager = env_manager
@@ -86,27 +87,32 @@ class RequirementsCompiler:
         are not included which can be where the real conflicts occur without
         necessarily a common root import.
         """
-         result= []
+        result = []
         for req_file in requirements_files:
-            lines =  self.read_package_lines(req_file)
-            result.append([(pkgdep, str(req_file)) for pkg in lines])   # note difference
+            lines = self.read_package_lines(req_file)
+            result.append([(pkgdep, str(req_file)) for pkg in lines])  # note difference
         result = sorted(result)
         return "\n".join(f"{pkg:<20}  : {path:<55}" for pkg, path in result)
 
-    def generate_mamba_spec(self, kernel_name: str, mamba_files: List[str], output_path: Path) -> dict:
+    def generate_mamba_spec(
+        self, kernel_name: str, mamba_files: List[str], output_path: Path
+    ) -> dict:
         """Generate mamba environment specification."""
         dependencies = [
-                f"python={self.python_version}" if self.python_version else "3",
+            f"python={self.python_version}" if self.python_version else "3",
         ]
         spi_packages = self.read_package_versions(mamba_files)
         dependencies += spi_packages
-        dependencies += [{"pip": []},]
+        dependencies += [
+            {"pip": []},
+        ]
         mamba_spec = {
             "name": kernel_name,
             "channels": ["conda-forge"],
-            "dependencies": dependencies
+            "dependencies": dependencies,
         }
         from ruamel.yaml import YAML
+
         yaml = YAML()
         with output_path.open("w") as f:
             yaml.dump(mamba_spec, f)
@@ -137,4 +143,3 @@ class RequirementsCompiler:
 
         result = self.env_manager.curator_run(cmd, check=False)
         return self.handle_result(result, f"uv compile failed:")
-

@@ -55,7 +55,7 @@ case $1 in
 	rm -rf ${MM}
 	bootstrap;
 	;;
-    setup)
+    setup|environment)
 	eval "$($MM/bin/micromamba shell hook --shell bash)"
 	micromamba activate nbcurator
 	;;

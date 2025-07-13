@@ -34,16 +34,8 @@ class NotebookCurator:
         self.tester = NotebookTester(
             self.logger, config.environment, config.jobs, config.timeout
         )
-        self.compiler = RequirementsCompiler(
-            self.logger, self.env_manager)
-                compiler = RequirementsCompiler(
-            self.logger,
-            self.config.micromamba_path,
-            self.spec_manager.python_version,
-            self.config.verbose,
-        )
-
-
+        self.compiler = RequirementsCompiler(self.logger, self.env_manager)
+        self.injector = get_injector(self.logger, config.repos_dir)
 
         # Create output directories
         os.makedirs(config.output_dir, exist_ok=True)
@@ -69,7 +61,7 @@ class NotebookCurator:
 
     def _execute_workflow(self) -> bool:
         """Execute the complete curation workflow."""
-        
+
         # Load and validate specification
         if not self._load_and_validate_spec():
             return False
@@ -108,7 +100,8 @@ class NotebookCurator:
         # Initialize target environment if requested;  we assume nb-curator is running in nbcurator bootstrap environment or equivalent
         if self.config.init_target_environment:
             if not self.env_manager.initialize_environment(
-                self.config.environment, self.micromamba_path):
+                self.config.environment, self.micromamba_path
+            ):
                 return False
 
         # Install packages if requested
@@ -160,7 +153,8 @@ class NotebookCurator:
 
         # Compile requirements
         pip_output_file = (
-            self.config.output_dir / f"{self.spec_manager.get_moniker()}-compile-output.txt"
+            self.config.output_dir
+            / f"{self.spec_manager.get_moniker()}-compile-output.txt"
         )
         package_versions = compiler.compile_requirements(
             requirements_files, pip_output_file
@@ -172,11 +166,17 @@ class NotebookCurator:
         # Store results in spec
         self.spec_manager.set_output_data("package_versions", package_versions)
         self.spec_manager.set_output_data("mamba_spec", mamba_spec)
-        self.spec_manager.set_output_data("pip_requirements_files", [str(f) for f in requirements_files])
-        self.spec_manager.set_output_data("mamba_requirements_files", [str(m) for m in mamba_files])
+        self.spec_manager.set_output_data(
+            "pip_requirements_files", [str(f) for f in requirements_files]
+        )
+        self.spec_manager.set_output_data(
+            "mamba_requirements_files", [str(m) for m in mamba_files]
+        )
         notebook_repos = list(self.repos_to_setup)
         notebook_repos.remove(self.injector.url)
-        self.spec_manager.set_output_data("repository_urls", [str(r) for r in notebook_repos])
+        self.spec_manager.set_output_data(
+            "repository_urls", [str(r) for r in notebook_repos]
+        )
 
         return True
 
@@ -201,32 +201,6 @@ class NotebookCurator:
             filtered_notebooks = notebook_paths
 
         return self.tester.test_notebooks(filtered_notebooks)
-
-    def _revise_spec_file(self, notebook_paths: List[str], test_imports: dict) -> bool:
-        """Update the spec file with computed outputs."""
-        try:
-            self.logger.info(f"Revising spec file {self.config.spec_file} --> {self.config.spec_file_out}")
-
-            # Update spec with outputs
-            if "out" not in self.spec:
-                self.spec["out"] = {}
-
-            self.spec["out"]["test_notebooks"] = [str(p) for p in notebook_paths]
-            self.spec["out"]["test_imports"] = list(test_imports.keys())
-
-            # Write updated spec
-            from ruamel.yaml import YAML
-
-            yaml = YAML()
-            yaml.preserve_quotes = True
-            yaml.indent(mapping=2, sequence=4, offset=2)
-
-            with open(self.config.spec_file_out, "w") as f:
-                yaml.dump(self.spec, f)
-
-            return self.logger.info(f"Revised spec file written to {self.config.spec_file_out}")
-        except Exception as e:
-            return self.logger.exception(e, f"Error revising spec file: {e}")
 
     def _get_moniker(self) -> str:
         """Get a filesystem-safe version of the image name."""

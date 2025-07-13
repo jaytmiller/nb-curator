@@ -137,14 +137,11 @@ def main():
         output_dir=args.output_dir,
         verbose=args.verbose,
         debug=args.debug,
-
         repos_dir=args.repos_dir,
         clone_repos=args.clone_repos,
         delete_repos=args.delete_repos,
-
         init_target_environment=args.init_target_environment,
         delete_target_environment=args.delete_target_environment,
-
         compile=args.compile,
         no_simplify_paths=args.no_simplify_paths,
         install=args.install,

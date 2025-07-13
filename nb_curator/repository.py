@@ -10,12 +10,15 @@ from .logging import CuratorLogger
 
 
 class RepositoryManager:
-    """Manages git repository operations for notebook collections.
-    
-    
-    """
+    """Manages git repository operations for notebook collections."""
 
-    def __init__(self, repos_dir: Path, logger: CuratorLogger, clone: bool = False, env_manager: EnvironmentManager | None = None):
+    def __init__(
+        self,
+        repos_dir: Path,
+        logger: CuratorLogger,
+        clone: bool = False,
+        env_manager: EnvironmentManager | None = None,
+    ):
         self.repos_dir = repos_dir
         self.logger = logger
         self.clone = clone

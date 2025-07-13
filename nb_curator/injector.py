@@ -44,11 +44,12 @@ class SpiInjector:
 
     def _inject(self, full_spec: dict, field: str, where: str) -> None:
         from ruamel.yaml import YAML
+
         self.logger.info(f"Injecting field {field} to {where}")
         with open(str(where), "w") as f:
             obj = full_spec[field]
             if isinstance(obj, dict):
-                yaml = YAML(typ='unsafe', pure=True)
+                yaml = YAML(typ="unsafe", pure=True)
                 yaml.dump(obj, f)
             elif isinstance(obj, list):
                 f.write("\n".join(obj))
@@ -57,7 +58,7 @@ class SpiInjector:
             else:
                 raise ValueError(f"Unsupported type {type(obj)} for field {field}")
 
-    def get_spi_requirements(self, glob_patterns: List[Path], kind:str) -> List[Path]:
+    def get_spi_requirements(self, glob_patterns: List[Path], kind: str) -> List[Path]:
         """Find extra mamba or pip requirements files required by SPI environments such as those
         included in the common/common-env directory. mamba packages are typically non-Python packages
         such as C libraries and compiles and install tools.  For Python packages,  using
@@ -68,7 +69,9 @@ class SpiInjector:
             extras = Path(".").glob(str(pattern))
             spi_extra_requirements.extend(list(extras))
             self.logger.debug(f"Found SPI extra {kind} requirements: {extras}")
-        self.logger.info(f"Found SPI extra {len(spi_extra_requirements)} {kind} .pip requirements.")
+        self.logger.info(
+            f"Found SPI extra {len(spi_extra_requirements)} {kind} .pip requirements."
+        )
         return spi_extra_requirements
 
     def _init_patterns(self, deployment_name: str, kernel_name: str) -> None:
@@ -90,12 +93,16 @@ class SpiInjector:
             self.kernel_path / "*.conda",
         ]
 
-    def find_spi_pip_requirements_files(self, deployment_name: str, kernel_name: str) -> List[Path]:
+    def find_spi_pip_requirements_files(
+        self, deployment_name: str, kernel_name: str
+    ) -> List[Path]:
         self._init_patterns(deployment_name, kernel_name)
         self.env_pip.unlink(missing_ok=True)
         return self.get_spi_requirements(self.pip_patterns, "pip")
 
-    def find_spi_mamba_requirements_files(self, deployment_name: str, kernel_name: str) -> List[Path]:
+    def find_spi_mamba_requirements_files(
+        self, deployment_name: str, kernel_name: str
+    ) -> List[Path]:
         self._init_patterns(deployment_name, kernel_name)
         self.env_yml.unlink(missing_ok=True)
         return self.get_spi_requirements(self.mamba_patterns, "mamba")

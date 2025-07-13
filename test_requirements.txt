@@ -1,0 +1,10 @@
+pytest>=3
+pytest-benchmark
+pytest-mock
+pytest-profiling
+mypy
+coverage
+flake8
+black
+bandit
+types-PyYAML
