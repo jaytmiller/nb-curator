@@ -2,11 +2,11 @@
 
 import os
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 
 from .logging import CuratorLogger
+from .environment import EnvironmentManager
 
 
 class RepositoryManager:
@@ -78,6 +78,6 @@ class RepositoryManager:
             if self.repos_dir.exists():
                 self.logger.info(f"Cleaning up repository directory: {self.repos_dir}")
                 shutil.rmtree(self.repos_dir)
-                return True
+            return True
         except Exception as e:
             return self.logger.exception(e, f"Error during cleanup: {e}")

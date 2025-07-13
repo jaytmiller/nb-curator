@@ -1,10 +1,11 @@
 """Requirements compilation and dependency resolution."""
 
-import subprocess
+import sys
 from pathlib import Path
 from typing import List, Optional
 
 from .logging import CuratorLogger
+from .environment import EnvironmentManager
 
 # from ruamel.yaml import YAML
 
@@ -90,7 +91,7 @@ class RequirementsCompiler:
         result = []
         for req_file in requirements_files:
             lines = self.read_package_lines(req_file)
-            result.append([(pkgdep, str(req_file)) for pkg in lines])  # note difference
+            result.append([(pkg, str(req_file)) for pkg in lines])  # note difference
         result = sorted(result)
         return "\n".join(f"{pkg:<20}  : {path:<55}" for pkg, path in result)
 
@@ -116,7 +117,7 @@ class RequirementsCompiler:
         yaml = YAML()
         with output_path.open("w") as f:
             yaml.dump(mamba_spec, f)
-        return spec
+        return mamba_spec
 
     def _run_uv_compile(
         self, output_file: Path, requirements_files: List[Path]
@@ -142,4 +143,4 @@ class RequirementsCompiler:
             cmd.append("--verbose")
 
         result = self.env_manager.curator_run(cmd, check=False)
-        return self.handle_result(result, f"uv compile failed:")
+        return self.handle_result(result, "uv compile failed:")

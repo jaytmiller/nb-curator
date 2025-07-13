@@ -1,7 +1,6 @@
 """Unified specification management with validation and persistence."""
 
 from typing import Dict, Any, List, Optional
-from pathlib import Path
 from ruamel.yaml import YAML
 
 from .logging import CuratorLogger
@@ -88,8 +87,6 @@ class SpecManager:
     def revise_and_save(
         self,
         output_file: str,
-        notebook_paths: List[str],
-        test_imports: dict,
         **additional_outputs,
     ) -> bool:
         """Update spec with computed outputs and save to file."""
@@ -97,15 +94,10 @@ class SpecManager:
             self.logger.info(
                 f"Revising spec file {self._source_file} --> {output_file}"
             )
-
-            # Update spec with outputs
-            self.set_output_data("test_notebooks", [str(p) for p in notebook_paths])
-            self.set_output_data("test_imports", list(test_imports.keys()))
-
-            # Add any additional output data
             for key, value in additional_outputs.items():
+                if isinstance(value, list):
+                    value = [str(item) for item in value]
                 self.set_output_data(key, value)
-
             return self.save_spec(output_file)
         except Exception as e:
             return self.logger.exception(e, f"Error revising spec file: {e}")

@@ -9,7 +9,6 @@ import subprocess
 import sys
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
-from pathlib import Path
 from typing import List, Tuple
 
 from .logging import CuratorLogger

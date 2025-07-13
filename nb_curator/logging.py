@@ -48,7 +48,6 @@ class CuratorLogger:
     def debug(self, *args) -> None:
         """Log a debug message."""
         self.logger.debug(self._lformat(*args))
-        return True
 
     def exception(self, e: Exception, *args) -> bool:
         """Handle an exception with optional debugging."""

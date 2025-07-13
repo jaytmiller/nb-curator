@@ -5,7 +5,6 @@ import sys
 
 from .config import CuratorConfig
 from .curator import NotebookCurator
-from .injector import SpiInjector
 
 
 def parse_args():

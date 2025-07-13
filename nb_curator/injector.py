@@ -1,6 +1,6 @@
 from .logging import CuratorLogger
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 # from ruamel.yaml import YAML
 
@@ -42,7 +42,7 @@ class SpiInjector:
         self._inject(full_spec["out"], "test_notebooks", self.test_path / "notebooks")
         self.logger.info("SPI injection complete.")
 
-    def _inject(self, full_spec: dict, field: str, where: str) -> None:
+    def _inject(self, full_spec: dict, field: str, where: str | Path) -> None:
         from ruamel.yaml import YAML
 
         self.logger.info(f"Injecting field {field} to {where}")

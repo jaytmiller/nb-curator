@@ -1,9 +1,10 @@
 """Environment management for package installation and testing."""
 
 import subprocess
-import sys
+from subprocess import CompletedProcess
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Any
+
 
 from .logging import CuratorLogger
 
@@ -25,7 +26,7 @@ class EnvironmentManager:
         timeout=300,
         capture_output=True,
         text=True,
-    ) -> Optional[str] | subprocess.CompetedProcess:
+    ) -> str | CompletedProcess[Any] | None:
         """Run a command in the current environment."""
         self.logger.debug(f"Running command: {command}")
         result = subprocess.run(
@@ -42,7 +43,7 @@ class EnvironmentManager:
             return result
 
     def handle_result(
-        self, result: subprocess.CompletedProcess, fail: str, success: str = ""
+        self, result: CompletedProcess[Any] | str | None, fail: str, success: str = ""
     ):
         """Provide standard handling for the check=False case of the xxx_run methods by
         issuing a success info or fail error and returning True or False respectively
@@ -51,6 +52,8 @@ class EnvironmentManager:
         If either the success or fail log messages (stripped) end in ":" then append
         result.stdout or result.stderr respectively.
         """
+        if not isinstance(result, CompletedProcess):
+            raise RuntimeError(f"Expected CompletedProcess, got {type(result)}")
         if result.returncode != 0:
             if fail.strip().endswith(":"):
                 fail += result.stderr
@@ -60,7 +63,9 @@ class EnvironmentManager:
                 success += result.stdout
             return self.logger.info(success) if success else True
 
-    def env_run(self, environment, command: List[str], **keys) -> Optional[str]:
+    def env_run(
+        self, environment, command: List[str], **keys
+    ) -> str | CompletedProcess[Any] | None:
         """Run a command in the specified environment.
 
         See EnvironmentManager.run for **keys optional settings.
@@ -77,9 +82,9 @@ class EnvironmentManager:
         if not self.create_environment(environment_name):
             return False
 
-        # Install curator packages
-        if not self._install_curator_packages():
-            return False
+        # # Install curator packages
+        # if not self._install_curator_packages():
+        #     return False
 
         # Register Jupyter environment
         if not self._register_environment(environment_name):
@@ -99,41 +104,47 @@ class EnvironmentManager:
             self.curator_run(command)
         return True
 
-    def _install_curator_packages(self) -> bool:
-        """Install required curator packages."""
-        self.logger.info("Installing required curator packages...")
-        cmd = ["install"] + CURATOR_PACKAGES
-        return self.env_run(environment, cmd)
+    # def _install_curator_packages(self, environment_name:str) -> bool:
+    #     """Install required curator packages."""
+    #     self.logger.info("Installing required curator packages...")
+    #     cmd = ["install"] + CURATOR_PACKAGES
+    #     return self.env_run(environment_name, cmd)
 
-    def delete_environment(self, environment_name: str) -> bool:
+    def delete_environment(
+        self, environment_name: str
+    ) -> str | CompletedProcess[Any] | None:
         """Delete an existing environment."""
         self.logger.info(f"Deleting environment: {environment_name}")
         mm_prefix = [self.micromamba_path, "env", "remove", "-n", environment_name]
         command = mm_prefix + ["--yes"]
         return self.curator_run(command)
 
-    def check_python_version(
-        self, environment: str, requested_version: List[int]
-    ) -> bool:
-        """Check if the current Python version matches the requested version."""
-        self.logger.info(f"Checking Python version for environment {tess}...")
+    # def check_python_version(
+    #     self, environment_name: str, requested_version: List[int]
+    # ) -> bool:
+    #     """Check if the current Python version matches the requested version."""
+    #     self.logger.info(f"Checking Python version for environment {environment_name}...")
 
-        output = subprocess.env_run(environment, ["python", "--version"])
-        self.logger.info(f"Python version output: {output}")
+    #     output = self..env_run(environment, ["python", "--version"])
+    #     self.logger.info(f"Python version output: {output}")
 
-        system_version = list(map(int, output.strip().split()[-1].split(".")))
+    #     system_version = list(map(int, output.strip().split()[-1].split(".")))
 
-        for i, version in enumerate(requested_version):
-            if version != system_version[i]:
-                return self.logger.error(
-                    f"Environment running Python {system_version} but "
-                    f"Python {requested_version} is requested"
-                )
+    #     for i, version in enumerate(requested_version):
+    #         if version != system_version[i]:
+    #             return self.logger.error(
+    #                 f"Environment running Python {system_version} but "
+    #                 f"Python {requested_version} is requested"
+    #             )
 
-        return True
+    #     return True
 
     def install_packages(
-        self, package_versions: List[str], output_dir: Path, moniker: str
+        self,
+        environment_name: str,
+        package_versions: List[str],
+        output_dir: Path,
+        moniker: str,
     ) -> bool:
         """Install the compiled package list."""
         if not package_versions:
@@ -150,7 +161,7 @@ class EnvironmentManager:
 
         # Install packages using uv
         cmd = ["uv", "pip", "install", "-r", str(temp_req_file)]
-        result = self.env_run(environment, cmd, check=False)
+        result = self.env_run(environment_name, cmd, check=False)
         return self.handle_result(
             result,
             "Package installation failed:",
@@ -159,17 +170,18 @@ class EnvironmentManager:
 
     def test_imports(self, environment_name: str, import_map: dict) -> bool:
         """Test package imports."""
-        python_imports = list(import_map.keys())
+        notebook_imports = list(import_map.keys())
         self.logger.info(f"Testing {len(import_map)} imports")
         result = self.env_run(
             environment_name,
             [
                 "test-imports",
             ]
-            + python_imports,
+            + notebook_imports,
             check=False,
         )
-        return self.env_manager.handle_result(
+        return self.handle_result(
+            result,
             "Failed to import notebook packages:",
             "All imports succeeded.",
         )

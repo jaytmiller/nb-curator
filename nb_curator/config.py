@@ -1,6 +1,5 @@
 """Configuration management for nb-curator."""
 
-import sys
 import os.path
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,10 +12,10 @@ class CuratorConfig:
 
     spec_file: str
     micromamba_path: str = "micromamba"
-    output_dir: str = "./output"
+    output_dir: Path = Path("./output")
 
     repos_dir: Optional[str] = None
-    clone_repos: bool = None
+    clone_repos: bool = False
     delete_repos: bool = False
 
     verbose: bool = False

@@ -64,14 +64,14 @@ clean-other:
 	rm -rf .mypy_cache
 
 lint/flake8: ## check style with flake8
-	find ${PROJECT} tests service_tests -name '*.py' | xargs flake8  --max-line-length 120 \
+	find ${PROJECT} tests -name '*.py' | xargs flake8  --max-line-length 120 \
 	  --ignore E302,E203,E305,W291,W503,W504,W391,E501 --count  --statistics
 
 lint/black: ## check style with black
-	black --check ${PROJECT} tests service_tests
+	black --check ${PROJECT} tests
 
 lint/bandit: ## check security with bandit
-	find ${PROJECT} tests service_tests -name '*.py' | xargs bandit -v -ll -ii --format txt
+	find ${PROJECT} tests -name '*.py' | xargs bandit -v -ll -ii --format txt
 
 lint/mypy:
 	mypy --install-types  --non-interactive  ${PROJECT}

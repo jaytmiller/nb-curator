@@ -43,7 +43,7 @@ class NotebookProcessor:
 
     def extract_imports(self, notebook_paths: List[str]) -> Dict[str, List[str]]:
         """Extract import statements from notebooks."""
-        import_to_nb = {}
+        import_to_nb: Dict[str, List[str]] = {}
         unique_notebooks = set(notebook_paths)
 
         self.logger.info(
