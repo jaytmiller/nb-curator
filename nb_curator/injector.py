@@ -1,16 +1,18 @@
-from .logging import CuratorLogger
 from pathlib import Path
 from typing import List
 
-# from ruamel.yaml import YAML
+from .logging import CuratorLogger
+from .spec_manager import SpecManager
 
 
-def get_injector(logger: CuratorLogger, repos_dir: str) -> "SpiInjector":
+def get_injector(
+    logger: CuratorLogger, repos_dir: str, spec_manager: SpecManager
+) -> "SpiInjector":
     """
     Factory method to create an instance of an SpiInjector which is tuned to
     configure an SPI deployment based on a curator spec.
     """
-    return SpiInjector(logger, repos_dir)
+    return SpiInjector(logger, repos_dir, spec_manager)
 
 
 class SpiInjector:
@@ -21,12 +23,14 @@ class SpiInjector:
     url = "https://github.com/spacetelescope/science-platform-images.git"
     repo_name = "science-platform-images"
 
-    def __init__(self, logger: CuratorLogger, repos_dir: str):
+    def __init__(
+        self, logger: CuratorLogger, repos_dir: str, spec_manager: SpecManager
+    ):
         self.logger = logger
         self.repos_dir = repos_dir
         self.spi_path = Path(repos_dir) / self.repo_name
 
-    def inject(self, full_spec: dict) -> None:
+    def inject(self) -> None:
         """
         Performs a placeholder injection of the SPI.
         In a real implementation, this would gather information about
@@ -35,21 +39,19 @@ class SpiInjector:
         self.logger.info(
             f"Initiating SPI injection into {self.spi_path} for {self.deployment_name} kernel {self.kernel_name}..."
         )
-        self._inject(full_spec["out"], "curated_repository_urls", self.kernel_path)
-        self._inject(full_spec["out"], "mamba_spec", self.env_yml)
-        self._inject(full_spec["out"], "package_versions", self.env_pip)
-        self._inject(full_spec["out"], "test_imports", self.test_path / "imports")
-        self._inject(full_spec["out"], "test_notebooks", self.test_path / "notebooks")
+        self._inject("curated_repository_urls", self.kernel_path)
+        self._inject("mamba_spec", self.env_yml)
+        self._inject("package_versions", self.env_pip)
+        self._inject("test_imports", self.test_path / "imports")
+        self._inject("test_notebooks", self.test_path / "notebooks")
         self.logger.info("SPI injection complete.")
 
     def _inject(self, full_spec: dict, field: str, where: str | Path) -> None:
-        from ruamel.yaml import YAML
-
         self.logger.info(f"Injecting field {field} to {where}")
         with open(str(where), "w") as f:
-            obj = full_spec[field]
+            obj = self.spec_manager.get_output_data(field)
             if isinstance(obj, dict):
-                yaml = YAML(typ="unsafe", pure=True)
+                yaml = self.spec_manager.get_yaml()
                 yaml.dump(obj, f)
             elif isinstance(obj, list):
                 f.write("\n".join(obj))

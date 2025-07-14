@@ -21,19 +21,19 @@ class CuratorConfig:
     verbose: bool = False
     debug: bool = False
 
-    compile: bool = False
-    no_simplify_paths: bool = False
+    compile_env: bool = False
 
-    init_target_environment: bool = False
-    delete_target_environment: bool = False
+    init_env: bool = False
+    delete_env: bool = False
 
-    install: bool = False
+    install_env: bool = False
 
     test_notebooks: bool = False
     jobs: int = 1
     timeout: int = 300
 
     inject_spi: bool = False
+    submit_for_build: bool = False
 
     def __post_init__(self):
         """Post-initialization processing."""

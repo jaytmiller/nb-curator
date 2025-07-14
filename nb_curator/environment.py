@@ -74,41 +74,19 @@ class EnvironmentManager:
         mm_prefix = [self.micromamba_path, "run", "-n", environment]
         return self.curator_run(mm_prefix + command, **keys)
 
-    def initialize_environment(self, environment_name: str, mamba_spec: str) -> bool:
-        """Initialize the environment for notebook processing."""
-        self.logger.info("Initializing environment...")
-
-        # Create the environment
-        if not self.create_environment(environment_name):
-            return False
-
-        # # Install curator packages
-        # if not self._install_curator_packages():
-        #     return False
-
-        # Register Jupyter environment
-        if not self._register_environment(environment_name):
-            return False
-
-        return self.logger.info("Environment initialization completed successfully")
-
     def create_environment(
         self, environment_name: str, micromamba_spec: str | None = None
     ) -> bool:
         """Create a new environment."""
         if not micromamba_spec:
             micromamba_spec = "python=3.10"
-            self.logger.info(f"Creating environment: {environment_name}")
-            mm_prefix = [self.micromamba_path, "create", "-n", environment_name]
-            command = mm_prefix + ["-c", "conda-forge"]
-            self.curator_run(command)
-        return True
-
-    # def _install_curator_packages(self, environment_name:str) -> bool:
-    #     """Install required curator packages."""
-    #     self.logger.info("Installing required curator packages...")
-    #     cmd = ["install"] + CURATOR_PACKAGES
-    #     return self.env_run(environment_name, cmd)
+        self.logger.info(f"Creating environment: {environment_name}")
+        mm_prefix = [self.micromamba_path, "create", "-n", environment_name]
+        command = mm_prefix + ["-c", "conda-forge"]
+        result = self.curator_run(command)
+        return self.handle_result(
+            result, f"Failed to create environment {environment_name}"
+        )
 
     def delete_environment(
         self, environment_name: str
@@ -117,27 +95,10 @@ class EnvironmentManager:
         self.logger.info(f"Deleting environment: {environment_name}")
         mm_prefix = [self.micromamba_path, "env", "remove", "-n", environment_name]
         command = mm_prefix + ["--yes"]
-        return self.curator_run(command)
-
-    # def check_python_version(
-    #     self, environment_name: str, requested_version: List[int]
-    # ) -> bool:
-    #     """Check if the current Python version matches the requested version."""
-    #     self.logger.info(f"Checking Python version for environment {environment_name}...")
-
-    #     output = self..env_run(environment, ["python", "--version"])
-    #     self.logger.info(f"Python version output: {output}")
-
-    #     system_version = list(map(int, output.strip().split()[-1].split(".")))
-
-    #     for i, version in enumerate(requested_version):
-    #         if version != system_version[i]:
-    #             return self.logger.error(
-    #                 f"Environment running Python {system_version} but "
-    #                 f"Python {requested_version} is requested"
-    #             )
-
-    #     return True
+        result = self.curator_run(command)
+        return self.handle_result(
+            result, f"Failed to delete environment {environment_name}"
+        )
 
     def install_packages(
         self,
@@ -186,7 +147,7 @@ class EnvironmentManager:
             "All imports succeeded.",
         )
 
-    def _register_environment(self, environment_name: str, display_name=None) -> bool:
+    def register_environment(self, environment_name: str, display_name=None) -> bool:
         """Register Jupyter environment for the environment.
 
         nbcurator environment should work here since it is modifying
@@ -209,7 +170,7 @@ class EnvironmentManager:
             result, f"Failed to register environment {environment_name}: "
         )
 
-    def _unregister_environment(self, environment_name: str) -> bool:
+    def unregister_environment(self, environment_name: str) -> bool:
         """Unregister Jupyter environment for the environment."""
         cmd = [
             "jupyter",

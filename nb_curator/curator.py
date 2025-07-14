@@ -28,14 +28,14 @@ class NotebookCurator:
             self.config.micromamba_path,
         )
         self.repo_manager = RepositoryManager(
-            config.repos_dir, self.logger, config.clone, self.env_manager
+            config.repos_dir, self.logger, config.clone_repos, self.env_manager
         )
         self.notebook_processor = NotebookProcessor(self.logger)
         self.tester = NotebookTester(
-            self.logger, config.environment, config.jobs, config.timeout
+            self.logger, self.environment_name, config.jobs, config.timeout
         )
         self.compiler = RequirementsCompiler(self.logger, self.env_manager)
-        self.injector = get_injector(self.logger, config.repos_dir)
+        self.injector = get_injector(self.logger, config.repos_dir, self.spec_manager)
 
         # Create output directories
         os.makedirs(config.output_dir, exist_ok=True)
@@ -49,7 +49,7 @@ class NotebookCurator:
         return self.spec_manager.deployment_name if self.spec_manager else None
 
     @property
-    def kernel_name(self):
+    def environment_name(self):
         return self.spec_manager.kernel_name if self.spec_manager else None
 
     def main(self) -> bool:
@@ -62,54 +62,65 @@ class NotebookCurator:
     def _execute_workflow(self) -> bool:
         """Execute the complete curation workflow."""
 
-        # # Check Python version compatibility
-        # if not self._check_python_version():
-        #     return False
-
         # Setup repositories if cloning requested.  Otherwise assume clones exist as needed
         spec_repo_urls = self.spec_manager.get_repository_urls()
-        spi_repo_urls = self.injector.repository_urls
+        spi_repo_urls = [self.injector.url]
         repo_urls = spec_repo_urls + spi_repo_urls
-        if not self._setup_repositories(repo_urls):
+        if not self.repo_manager.setup_repos(repo_urls):
             return False
 
         # Handle requirements compilation
-        if self.config.compile:
-            self._handle_requirements_compilation()
+        if self.config.compile_env:
+            mamba_spec_outfile, pip_output_file = (
+                self._handle_requirements_compilation()
+            )
         test_imports = self.spec_manager.get_output_data("test_imports", [])
-        notebook_paths = self.spec.get_output_data("test_notebooks", [])
+        notebook_paths = self.spec_manager.get_output_data("test_notebooks", [])
 
-        # Initialize target environment if requested;  we assume nb-curator is running in nbcurator bootstrap environment or equivalent
-        if self.config.init_target_environment:
-            if not self.env_manager.initialize_environment(
-                self.config.environment, self.micromamba_path
+        # Initialize target environment if requested.
+        # We assume nb-curator is running in nbcurator bootstrap environment or equivalent.
+        if self.config.init_env:
+            if not self.env_manager.create_environment(
+                self.environment_name, mamba_spec_outfile
             ):
+                return False
+            if not self.env_manager.register_environment(self.environment_name):
                 return False
 
         # Install packages if requested
-        if self.config.install:
-            if not self._install_and_test_packages(test_imports):
+        if self.config.install_env:
+            if not self.env_manager.install_packages(
+                package_versions,
+                self.config.output_dir,
+                self.spec_manager.get_moniker(),
+            ):
+                return False
+            if not self.env_manager.test_imports(test_imports):
                 return False
 
-        # Test notebooks if requested
-        if self.config.test:
-            if not self._test_notebooks(notebook_paths):
+        # Test notebooks if requested, config.test is a regex or None, default=.*
+        if self.config.test_notebooks:
+            filtered_notebooks = self.tester.filter_notebooks(
+                notebook_paths, self.config.test_notebooks
+            )
+            if not self.tester.test_notebooks(filtered_notebooks):
                 return False
 
         if self.config.inject_spi:
-            self.injector.inject(self.spec_manager.to_dict())
+            self.injector.inject()
 
         # Cleanup if requested
-        if self.config.cleanup:
-            if not self.repo_manager.cleanup_repos():
+        if self.config.delete_repos:
+            if not self.repo_manager.delete_repos():
+                return False
+
+        if self.config.delete_env:
+            if not self.env_manager.unregister_environment(self.environment_name):
+                return False
+            if not self.env_manager.delete_environment(self.environment_name):
                 return False
 
         return True
-
-    #  def _check_python_version(self) -> bool:
-    #     """Check Python version compatibility."""
-    #     requested_version = self.spec_manager.get_python_version_list()
-    #     return self.env_manager.check_python_version(requested_version)
 
     def _handle_requirements_compilation(self) -> bool:
         """Handle requirements compilation workflow."""
@@ -158,33 +169,7 @@ class NotebookCurator:
             mamba_requirements_files=mamba_files,
             repository_urls=notebook_repos,
         )
-        return True
-
-    def _install_and_test_packages(self, test_imports: dict) -> bool:
-        """Install packages and test imports."""
-        package_versions = self.spec.get("out", {}).get("package_versions", [])
-
-        if not self.env_manager.install_packages(
-            package_versions, self.config.output_dir, self._get_moniker()
-        ):
-            return False
-
-        return self.env_manager.test_imports(test_imports)
-
-    def _test_notebooks(self, notebook_paths: List[str]) -> bool:
-        """Test notebooks based on configuration."""
-        if isinstance(self.config.test, str):
-            filtered_notebooks = self.tester.filter_notebooks(
-                notebook_paths, self.config.test
-            )
-        else:
-            filtered_notebooks = notebook_paths
-
-        return self.tester.test_notebooks(filtered_notebooks)
-
-    def _get_moniker(self) -> str:
-        """Get a filesystem-safe version of the image name."""
-        return self.spec["image_spec_header"]["image_name"].replace(" ", "-").lower()
+        return mamba_spec_outfile, pip_output_file
 
     def print_log_counters(self):
         """Print summary of logged messages."""

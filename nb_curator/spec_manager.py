@@ -1,7 +1,8 @@
 """Unified specification management with validation and persistence."""
 
 from typing import Dict, Any, List, Optional
-from ruamel.yaml import YAML
+
+# from ruamel.yaml import YAML
 
 from .logging import CuratorLogger
 
@@ -62,14 +63,12 @@ class SpecManager:
         """Perform comprehensive validation on the loaded specification."""
         if not self._spec:
             return self.logger.error("No specification loaded")
-
         validation_result = (
             self._validate_top_level_structure()
             and self._validate_header_section()
             and self._validate_selected_notebooks_section()
             and self._validate_directory_repos()
         )
-
         self._is_validated = validation_result
         return validation_result
 
@@ -177,8 +176,10 @@ class SpecManager:
         if not self._is_validated:
             raise RuntimeError("Spec must be validated before accessing data")
 
-    def _get_yaml(self) -> YAML:
+    def _get_yaml(self) -> "YAML":
         """Return configured ruamel.yaml instance."""
+        from ruamel.yaml import YAML
+
         yaml = YAML()
         yaml.preserve_quotes = True
         yaml.indent(mapping=2, sequence=4, offset=2)

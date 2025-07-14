@@ -16,20 +16,20 @@ class RepositoryManager:
         self,
         repos_dir: Path,
         logger: CuratorLogger,
-        clone: bool = False,
+        clone_repos: bool = False,
         env_manager: EnvironmentManager | None = None,
     ):
         self.repos_dir = repos_dir
         self.logger = logger
-        self.clone = clone
+        self.clone_repos = clone_repos
         self.env_manager = env_manager
         self.repos_to_setup: Dict[str, Optional[Path]] = {}
 
-    def setup_repositories(self, repo_urls: list[str]) -> bool:
+    def setup_repos(self, repo_urls: list[str]) -> bool:
         """Set up all specified repositories."""
         self.repos_to_setup = {url: None for url in repo_urls}
         for repo_url in repo_urls:
-            if not self.clone:
+            if not self.clone_repos:
                 repo_path = self._setup_local_repo(repo_url)
             else:
                 repo_path = self._setup_remote_repo(repo_url)
@@ -38,9 +38,14 @@ class RepositoryManager:
             self.repos_to_setup[repo_url] = repo_path
         return True
 
+    def _repo_path(self, repo_url: str) -> Path:
+        """Get the path for a repository."""
+        repo_name = repo_url.split("/")[-1].replace(".git", "")
+        return self.repos_dir / repo_name
+
     def _setup_local_repo(self, repo_url: str) -> Optional[Path]:
         """Set up a local repository."""
-        local_path = Path(os.path.expanduser(repo_url[7:]))  # Remove "file://"
+        local_path = self._repo_path(repo_url)
         if not local_path.exists():
             self.logger.error(f"Local repository path does not exist: {local_path}")
             return None
@@ -49,14 +54,13 @@ class RepositoryManager:
 
     def _setup_remote_repo(self, repo_url: str) -> Optional[Path]:
         """Set up a remote repository by cloning or updating."""
-        repo_name = repo_url.split("/")[-1].replace(".git", "")
-        repo_dir = self.repos_dir / repo_name
-        if repo_dir.exists():
-            self.logger.info(f"Using existing repository at {repo_dir}")
-            return repo_dir
+        repo_path = self._repo_path(repo_url)
+        if repo_path.exists():
+            self.logger.info(f"Using existing repository at {repo_path}")
+            return repo_path
         else:
             try:
-                return self._clone_repo(repo_url, repo_dir)
+                return self._clone_repo(repo_url, repo_path)
             except Exception as e:
                 self.logger.exception(e, f"Failed to setup repository {repo_url}")
                 return None
@@ -72,7 +76,7 @@ class RepositoryManager:
         self.logger.info(f"Successfully cloned repository to {repo_dir}")
         return repo_dir
 
-    def cleanup_repos(self) -> bool:
+    def delete_repos(self) -> bool:
         """Clean up cloned repositories."""
         try:
             if self.repos_dir.exists():

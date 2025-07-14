@@ -16,12 +16,6 @@ def parse_args():
         "spec_file", type=str, help="Path to the YAML specification file."
     )
     parser.add_argument(
-        "--micromamba-path",
-        type=str,
-        default=sys.executable,
-        help="Path to micromamba program to use for curator and target environments.",
-    )
-    parser.add_argument(
         "--output-dir",
         type=str,
         default="./output",
@@ -43,7 +37,7 @@ def parse_args():
         default=None,
         const="base",
         nargs="?",
-        help="Initialize the target environment before curation run. See also --delete-env.",
+        help="Create and kernelize the target environment before curation run. See also --delete-env.",
     )
     parser.add_argument(
         "--curate",
@@ -52,20 +46,20 @@ def parse_args():
     )
     parser.add_argument(
         "-c",
-        "--compile",
+        "--compile-env",
         action="store_true",
-        help="Compile input package lists to generate pinned requirements",
+        help="Compile spec and input package lists to generate pinned requirements and other metadata.",
     )
-    parser.add_argument(
-        "--no-simplify-paths",
-        action="store_true",
-        help="Use full input paths in compiler requirements table output",
-    )
+    # parser.add_argument(
+    #     "--no-simplify-paths",
+    #     action="store_true",
+    #     help="Use full input paths in compiler requirements table output",
+    # )
     parser.add_argument(
         "-i",
-        "--install",
+        "--install-env",
         action="store_true",
-        help="Install resolved notebook dependencies in system Python environment",
+        help="Install compiled base and pip requirements into target/test environment.",
     )
     parser.add_argument(
         "-t",
@@ -74,7 +68,7 @@ def parse_args():
         const=".*",
         nargs="?",
         type=str,
-        help="Test notebooks matching patterns (comma-separated regexes)",
+        help="Test notebooks matching patterns (comma-separated regexes) in target environment.",
     )
     parser.add_argument(
         "-j",
@@ -97,19 +91,25 @@ def parse_args():
     parser.add_argument(
         "--submit-for-build",
         action="store_true",
-        help="Submit the injected curation results to the Science Platform Images GitHub repo triggering a build.",
+        help="Submit the updated spec and curation results to the Science Platform Images GitHub repo triggering a build.",
     )
     parser.add_argument(
         "--delete-repos",
         action="store_true",
-        help="Delete repo clones after processing",
+        help="Delete --repo-dir and clones after processing.",
     )
     parser.add_argument(
-        "--delete-target-environment",
+        "--delete-env",
         default=None,
         const="base",
         nargs="?",
-        help="Delete the target environment after curation run.",
+        help="Completely delete the target environment after processing.",
+    )
+    parser.add_argument(
+        "--micromamba-path",
+        type=str,
+        default=sys.executable,
+        help="Path to micromamba program to use for curator environment management.",
     )
     parser.add_argument(
         "-v",
@@ -132,22 +132,22 @@ def main():
     # Create configuration
     config = CuratorConfig(
         spec_file=args.spec_file,
-        micromamba_path=args.micromamba_path,
         output_dir=args.output_dir,
         verbose=args.verbose,
         debug=args.debug,
         repos_dir=args.repos_dir,
         clone_repos=args.clone_repos,
         delete_repos=args.delete_repos,
-        init_target_environment=args.init_target_environment,
-        delete_target_environment=args.delete_target_environment,
-        compile=args.compile,
-        no_simplify_paths=args.no_simplify_paths,
-        install=args.install,
+        compile_env=args.compile_env,
+        init_env=args.init_env,
+        install_env=args.install_env,
+        delete_env=args.delete_env,
         test_notebooks=args.test_notebooks,
         jobs=args.jobs,
         timeout=args.timeout,
         inject_spi=args.inject_spi,
+        submit_for_build=args.submit_for_build,
+        micromamba_path=args.micromamba_path,
     )
 
     # Create and run curator

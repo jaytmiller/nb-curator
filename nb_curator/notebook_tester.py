@@ -32,6 +32,22 @@ class NotebookTester:
         self.jobs = jobs
         self.timeout = timeout
 
+    def filter_notebooks(
+        self, notebook_paths: List[str], test_patterns: str
+    ) -> List[str]:
+        """Filter notebooks based on test patterns."""
+        import re
+
+        unique_notebooks = set()
+        for nb_path in sorted(notebook_paths):
+            for regex in test_patterns.split(","):
+                if re.search(regex, nb_path):
+                    unique_notebooks.add(nb_path)
+
+        filtered = sorted(unique_notebooks)
+        self.logger.info(f"Filtered notebook list to {len(filtered)} entries")
+        return filtered
+
     def test_notebooks(self, notebook_paths: List[str]) -> bool:
         """Test multiple notebooks in parallel."""
         self.logger.info(
@@ -62,22 +78,6 @@ class NotebookTester:
 
         self.logger.info("All notebooks passed tests")
         return True
-
-    def filter_notebooks(
-        self, notebook_paths: List[str], test_patterns: str
-    ) -> List[str]:
-        """Filter notebooks based on test patterns."""
-        import re
-
-        unique_notebooks = set()
-        for nb_path in sorted(notebook_paths):
-            for regex in test_patterns.split(","):
-                if re.search(regex, nb_path):
-                    unique_notebooks.add(nb_path)
-
-        filtered = sorted(unique_notebooks)
-        self.logger.info(f"Filtered notebook list to {len(filtered)} entries")
-        return filtered
 
     def _test_single_notebook(
         self, notebook: str, environment: str, timeout: int
