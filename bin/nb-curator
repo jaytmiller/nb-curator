@@ -1,10 +1,10 @@
 #! /bin/bash
 
 function setup_env {
-    export MM="$HOME/.nb-curator/mm"
-    export MAMBA_ROOT_PREFIX=${MM}
-    export PATH=${MM}/bin:${PATH}
-    export PATH=${MM}/envs/nbcurator/bin:${PATH}
+    export NBC_MM="$HOME/.nb-curator/mm"
+    export MAMBA_ROOT_PREFIX=${NBC_MM}
+    export PATH=${NBC_MM}/bin:${PATH}
+    export PATH=${NBC_MM}/envs/nbcurator/bin:${PATH}
 }
 
 function bootstrap {
@@ -28,9 +28,9 @@ function bootstrap {
     esac
     
     # Git OS/CPU-specific micromamba binary
-    ( mkdir -p ${MM}; cd ${MM}; curl -Ls $URL | tar -xvj bin/micromamba )
+    ( mkdir -p ${NBC_MM}; cd ${NBC_MM}; curl -Ls $URL | tar -xvj bin/micromamba )
 
-    eval "$($MM/bin/micromamba shell hook --shell bash)"
+    eval "$($NBC_MM/bin/micromamba shell hook --shell bash)"
 
     micromamba config append channels conda-forge
     micromamba config set channel_priority strict
@@ -54,15 +54,15 @@ setup_env
 case $1 in
     boot*)
 	shift;
-	rm -rf ${MM}
+	rm -rf ${NBC_MM}
 	bootstrap;
 	;;
     setup|environment)
-	eval "$($MM/bin/micromamba shell hook --shell bash)"
+	eval "$($NBC_MM/bin/micromamba shell hook --shell bash)"
 	micromamba activate nbcurator
 	;;
     *)
-	eval "$($MM/bin/micromamba shell hook --shell bash)"
+	eval "$($NBC_MM/bin/micromamba shell hook --shell bash)"
 	micromamba activate nbcurator
 	python -m nb_curator $*
 	;;	

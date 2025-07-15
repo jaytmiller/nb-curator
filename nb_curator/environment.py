@@ -36,7 +36,7 @@ class EnvironmentManager:
             check=check,
             timeout=timeout,
         )
-        self.logger.debug(f"Command output: {result.stdout}")
+        # self.logger.debug(f"Command output: {result.stdout}")
         if check:
             return result.stdout
         else:
@@ -103,25 +103,16 @@ class EnvironmentManager:
     def install_packages(
         self,
         environment_name: str,
-        package_versions: List[str],
-        output_dir: Path,
-        moniker: str,
+        requirements_paths: List[Path],
     ) -> bool:
         """Install the compiled package list."""
-        if not package_versions:
-            return self.logger.warning("No packages found to install")
+        self.logger.info(f"Installing packages from: {requirements_paths}")
 
-        self.logger.info(f"Installing {len(package_versions)} packages")
-
-        # Create temporary requirements file
-        temp_req_file = output_dir / f"{moniker}-install-requirements.txt"
-
-        with open(temp_req_file, "w") as f:
-            for package in sorted(package_versions):
-                f.write(f"{package}\n")
+        cmd = ["uv", "pip", "install",]
+        for path in requirements_paths:
+            cmd +=  ["-r", str(path)]
 
         # Install packages using uv
-        cmd = ["uv", "pip", "install", "-r", str(temp_req_file)]
         result = self.env_run(environment_name, cmd, check=False)
         return self.handle_result(
             result,

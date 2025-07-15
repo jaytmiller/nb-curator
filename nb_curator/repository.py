@@ -14,25 +14,23 @@ class RepositoryManager:
 
     def __init__(
         self,
-        repos_dir: Path,
         logger: CuratorLogger,
-        clone_repos: bool = False,
+        repos_dir: Path,
         env_manager: EnvironmentManager | None = None,
     ):
         self.repos_dir = repos_dir
         self.logger = logger
-        self.clone_repos = clone_repos
         self.env_manager = env_manager
         self.repos_to_setup: Dict[str, Optional[Path]] = {}
 
-    def setup_repos(self, repo_urls: list[str]) -> bool:
+    def setup_repos(self, clone_repos: bool, repo_urls: list[str]) -> bool:
         """Set up all specified repositories."""
         self.repos_to_setup = {url: None for url in repo_urls}
         for repo_url in repo_urls:
-            if not self.clone_repos:
-                repo_path = self._setup_local_repo(repo_url)
-            else:
+            if clone_repos:
                 repo_path = self._setup_remote_repo(repo_url)
+            else:
+                repo_path = self._setup_local_repo(repo_url)
             if not repo_path:
                 return False
             self.repos_to_setup[repo_url] = repo_path
@@ -84,4 +82,4 @@ class RepositoryManager:
                 shutil.rmtree(self.repos_dir)
             return True
         except Exception as e:
-            return self.logger.exception(e, f"Error during cleanup: {e}")
+            return self.logger.exception(e, f"Error during cleanup.")

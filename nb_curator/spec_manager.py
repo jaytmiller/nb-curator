@@ -1,6 +1,9 @@
 """Unified specification management with validation and persistence."""
 
+import os.path
+import re
 from typing import Dict, Any, List, Optional
+from pathlib import Path
 
 # from ruamel.yaml import YAML
 
@@ -35,11 +38,11 @@ class SpecManager:
         self.logger = logger
         self._spec: Dict[str, Any] = {}
         self._is_validated = False
-        self._source_file: Optional[str] = None
+        self._source_file: Optional[Path] = None
 
     @classmethod
     def load_and_validate(
-        cls, spec_file: str, logger: CuratorLogger
+        cls, logger: CuratorLogger, spec_file: str, 
     ) -> Optional["SpecManager"]:
         """Factory method to load and validate a spec file."""
         manager = cls(logger)
@@ -47,37 +50,43 @@ class SpecManager:
             return manager
         return None
 
-    def load_spec(self, spec_file: str) -> bool:
+    def load_spec(self, spec_file: str|Path) -> bool:
         """Load YAML specification file."""
         try:
-            yaml = self._get_yaml()
-            with open(spec_file, "r") as f:
+            yaml = self.get_yaml()
+            self._source_file = Path(spec_file)
+            with self._source_file.open("r") as f:
                 self._spec = yaml.load(f)
-            self._source_file = spec_file
-            self._is_validated = False  # Reset validation status
-            return self.logger.info(f"Successfully loaded spec from {spec_file}")
+            return self.logger.info(f"Successfully loaded spec from {str(spec_file)}")
         except Exception as e:
             return self.logger.exception(e, f"Failed to load YAML spec: {e}")
 
     def validate(self) -> bool:
         """Perform comprehensive validation on the loaded specification."""
         if not self._spec:
-            return self.logger.error("No specification loaded")
-        validation_result = (
+            return self.logger.error("Spec did not loaded / defined, cannot validate.")
+        validated = (
             self._validate_top_level_structure()
             and self._validate_header_section()
             and self._validate_selected_notebooks_section()
             and self._validate_directory_repos()
         )
-        self._is_validated = validation_result
-        return validation_result
+        if not validated:
+            return self.logger.error("Spec validation failed.")
+        self._is_validated = True
+        return self.logger.info("Spec validated.")
 
-    def save_spec(self, output_file: str) -> bool:
+    def output_spec(self, output_dir: Path | str) -> Path:
+        """The output path for the spec file."""
+        return Path(output_dir) / self._source_file.name
+
+    def save_spec(self, output_dir: Path | str) -> bool:
         """Save the current spec to a file."""
         try:
+            output_file = self.output_spec(output_dir)
             self.logger.info(f"Saving spec file to {output_file}")
-            yaml = self._get_yaml()
-            with open(output_file, "w") as f:
+            yaml = self.get_yaml()
+            with output_file.open("w") as f:
                 yaml.dump(self._spec, f)
             return self.logger.info(f"Spec file written to {output_file}")
         except Exception as e:
@@ -85,19 +94,19 @@ class SpecManager:
 
     def revise_and_save(
         self,
-        output_file: str,
+        output_dir: Path | str,
         **additional_outputs,
     ) -> bool:
         """Update spec with computed outputs and save to file."""
         try:
             self.logger.info(
-                f"Revising spec file {self._source_file} --> {output_file}"
+                f"Revising spec file {self._source_file} -> {output_dir}"
             )
             for key, value in additional_outputs.items():
                 if isinstance(value, list):
                     value = [str(item) for item in value]
                 self.set_output_data(key, value)
-            return self.save_spec(output_file)
+            return self.save_spec(output_dir)
         except Exception as e:
             return self.logger.exception(e, f"Error revising spec file: {e}")
 
@@ -132,25 +141,6 @@ class SpecManager:
         self._ensure_validated()
         return self._spec["selected_notebooks"]
 
-    def get_repository_urls(self) -> List[str]:
-        """Get all unique repository URLs from the spec."""
-        self._ensure_validated()
-        urls = [self.nb_repo]
-        for entry in self.selected_notebooks:
-            nb_repo = entry.get("nb_repo", self.nb_repo)
-            if nb_repo not in urls:
-                urls.append(nb_repo)
-        return urls
-
-    def get_python_version_list(self) -> List[int]:
-        """Extract requested Python version as list of integers."""
-        version_str = self.python_version
-        if isinstance(version_str, (int, float)):
-            version_str = str(version_str)
-        if not isinstance(version_str, str):
-            raise ValueError("Invalid python_version in spec file")
-        return list(map(int, version_str.split(".")))
-
     def set_output_data(self, key: str, value: Any) -> None:
         """Set data in the output section."""
         if "out" not in self._spec:
@@ -176,7 +166,7 @@ class SpecManager:
         if not self._is_validated:
             raise RuntimeError("Spec must be validated before accessing data")
 
-    def _get_yaml(self) -> "YAML":
+    def get_yaml(self) -> "YAML":
         """Return configured ruamel.yaml instance."""
         from ruamel.yaml import YAML
 
@@ -240,3 +230,89 @@ class SpecManager:
         """Validate that all repositories in directory entries are specified."""
         # Implementation details...
         return True
+
+    def get_repository_urls(self) -> List[str]:
+        """Get all unique repository URLs from the spec."""
+        self._ensure_validated()
+        urls = [self.nb_repo]
+        for entry in self.selected_notebooks:
+            nb_repo = entry.get("nb_repo", self.nb_repo)
+            if nb_repo not in urls:
+                urls.append(nb_repo)
+        return sorted(list(set(urls)))
+
+    def collect_notebook_paths(self, repos_dir: Path, nb_repos: list[str]) -> list[str]:
+        """Collect paths to all notebooks specified by the spec."""
+        notebook_paths = []
+        header_root = self._spec["image_spec_header"].get("root_nb_directory", "")
+        for entry in self._spec["selected_notebooks"]:
+            selection_repo = entry.get("nb_repo", self._spec["image_spec_header"]["nb_repo"])
+            clone_dir = self._get_repo_dir(repos_dir, selection_repo)
+            if not clone_dir:
+                self.logger.error(f"Repository not set up: {clone_dir}")
+                continue
+            entry_root = entry.get("root_nb_directory")
+            final_notebook_root = entry_root or header_root
+            notebook_paths.extend(
+                self._process_directory_entry(entry, clone_dir, final_notebook_root)
+            )
+        self.logger.info(f"Found {len(notebook_paths)} notebooks in all notebook repositories.")
+        return notebook_paths
+
+    def _get_repo_dir(self, repos_dir: Path, nb_repo: str) -> Optional[Path]:
+        """Get the path to the repository directory."""
+        basename = os.path.basename(nb_repo).replace(".git", "")
+        return repos_dir / basename
+
+    def _process_directory_entry(
+        self, entry: dict, repo_dir: Path, root_nb_directory: str
+    ) -> List[str]:
+        """Process a directory entry from the spec file."""
+        base_path = repo_dir
+        if root_nb_directory:
+            base_path = base_path / root_nb_directory
+        possible_notebooks = base_path.glob("**/*.ipynb")
+
+        include_subdirs = entry.get("include_subdirs", [r"."])
+        included_notebooks = self._only_included_non_files(
+            possible_notebooks, include_subdirs)
+
+        exclude_subdirs = entry.get("exclude_subdirs", [])
+        remaining_notebooks = self._exclude_notebooks(
+            included_notebooks, exclude_subdirs
+        )
+        self.logger.debug(f"Selected {len(remaining_notebooks)} notebooks under {base_path}.")
+        return remaining_notebooks
+
+    def _only_included_non_files(self,
+        possible_notebooks: list[Path], include_regexes: list[str]
+    ) -> list[Path]:
+        included_notebooks = []
+        for nb_path in possible_notebooks:
+            if not nb_path.is_file():
+                self.logger.warning(f"Skipping non-file: {nb_path}")
+                continue
+            for include in include_regexes:
+                if re.search(include, str(nb_path)):
+                    self.logger.debug(f"Including notebook {nb_path} based on regex: '{include}'")
+                    included_notebooks.append(nb_path)
+                    break
+        return included_notebooks
+    
+    def _exclude_notebooks(self,
+        included_notebooks: list[Path], exclude_subdirs: list[str]
+    ) -> list[str]:
+        notebook_paths = []
+        for nb_path in included_notebooks:
+            if re.search(r"(.ipynb_|-)checkpoints", str(nb_path)):
+                self.logger.debug(f"Skipping checkpoint(s): {nb_path}")
+                continue
+            for exclude in exclude_subdirs:
+                if re.search(exclude, str(nb_path)):
+                    self.logger.debug(f"Excluding notebook {nb_path} based on regex: '{exclude}'")
+                    break
+            else:
+                notebook_paths.append(str(nb_path))
+        return notebook_paths
+
+

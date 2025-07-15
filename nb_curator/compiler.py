@@ -34,7 +34,6 @@ class RequirementsCompiler:
             if req_file.exists():
                 requirements_files.append(req_file)
                 self.logger.debug(f"Found requirements file: {req_file}")
-
         self.logger.info(f"Found {len(requirements_files)} requirements.txt files")
         return requirements_files
 
@@ -143,4 +142,4 @@ class RequirementsCompiler:
             cmd.append("--verbose")
 
         result = self.env_manager.curator_run(cmd, check=False)
-        return self.handle_result(result, "uv compile failed:")
+        return self.env_manager.handle_result(result, "uv compile failed:")

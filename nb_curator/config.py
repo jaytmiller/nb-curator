@@ -1,10 +1,12 @@
 """Configuration management for nb-curator."""
 
 import os.path
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+DEFAULT_MICROMAMBA_PATH = os.environ.get("NBC_MM", "") + "/bin/" + "micromamba"
 
 @dataclass
 class CuratorConfig:
@@ -28,12 +30,13 @@ class CuratorConfig:
 
     install_env: bool = False
 
-    test_notebooks: bool = False
+    test_notebooks: str | None = None
     jobs: int = 1
     timeout: int = 300
 
     inject_spi: bool = False
     submit_for_build: bool = False
+    curate: bool = False
 
     def __post_init__(self):
         """Post-initialization processing."""

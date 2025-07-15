@@ -2,8 +2,9 @@
 
 import argparse
 import sys
+from pathlib import Path
 
-from .config import CuratorConfig
+from .config import CuratorConfig, DEFAULT_MICROMAMBA_PATH
 from .curator import NotebookCurator
 
 
@@ -108,7 +109,7 @@ def parse_args():
     parser.add_argument(
         "--micromamba-path",
         type=str,
-        default=sys.executable,
+        default=DEFAULT_MICROMAMBA_PATH,
         help="Path to micromamba program to use for curator environment management.",
     )
     parser.add_argument(
@@ -128,7 +129,7 @@ def parse_args():
 def main():
     """Main entry point for the CLI."""
     args = parse_args()
-
+    
     # Create configuration
     config = CuratorConfig(
         spec_file=args.spec_file,
@@ -148,6 +149,7 @@ def main():
         inject_spi=args.inject_spi,
         submit_for_build=args.submit_for_build,
         micromamba_path=args.micromamba_path,
+        curate=args.curate,
     )
 
     # Create and run curator

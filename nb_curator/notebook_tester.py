@@ -12,6 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import List, Tuple
 
 from .logging import CuratorLogger
+from .environment import EnvironmentManager
 
 
 NOTEBOOK_MAX_SECS = 30 * 60
@@ -23,12 +24,12 @@ class NotebookTester:
     def __init__(
         self,
         logger: CuratorLogger,
-        environment: str = "base",
+        env_manager: EnvironmentManager,
         jobs: int = 1,
         timeout: int = NOTEBOOK_MAX_SECS,
     ):
         self.logger = logger
-        self.environment = environment
+        self.env_manager = env_manager
         self.jobs = jobs
         self.timeout = timeout
 
@@ -88,52 +89,16 @@ class NotebookTester:
 
         base_nb = os.path.basename(notebook)
         start = datetime.datetime.now()
-
         output = self._print_divider(
             f"Testing '{base_nb}' on environment '{environment}'"
         )
-
         here = os.getcwd()
-        err = True  # assume failed
-
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                source_path = os.path.dirname(os.path.abspath(notebook))
-                test_dir = os.path.join(temp_dir, "notebook-test")
-                shutil.copytree(source_path, test_dir)
-                os.chdir(test_dir)
-
-                # Set permissions
-                os.chmod(test_dir, stat.S_IRWXU)
-                for path in glob.glob("*"):
-                    os.chmod(path, stat.S_IRWXU)
-
-                # Run the notebook
-                if notebook.endswith(".ipynb"):
-                    cmd = [
-                        "papermill",
-                        "--no-progress-bar",
-                        os.path.basename(notebook),
-                        "-k",
-                        environment,
-                        "test.ipynb",
-                    ]
-                elif notebook.endswith(".py"):
-                    cmd = ["python", os.path.basename(notebook)]
-                else:
-                    raise ValueError(f"Unhandled test file extension: {notebook}")
-
-                result = subprocess.run(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    timeout=timeout,
-                )
-
-                err = result.returncode != 0
-                output += result.stdout
-
+            err, core_output = self._test_single_notebook_core(
+                notebook, environment, timeout
+            )
+            error = False
+            output += core_output
         except Exception as e:
             output += f"Exception during testing: {str(e)}\n"
             err = True
@@ -145,6 +110,50 @@ class NotebookTester:
         output += self._print_divider(f"Tested {base_nb} {status} {elapsed}")
 
         return err, notebook, output
+
+    def _test_single_notebook_core(self, notebook: str, environment: str, timeout: int) -> Tuple[bool, str, str]:
+        """Test a single notebook in isolation."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = os.path.dirname(os.path.abspath(notebook))
+            test_dir = os.path.join(temp_dir, "notebook-test")
+            shutil.copytree(source_path, test_dir)
+            os.chdir(test_dir)
+
+            # Set permissions
+            os.chmod(test_dir, stat.S_IRWXU)
+            for path in glob.glob("*"):
+                os.chmod(path, stat.S_IRWXU)
+
+            # Run the notebook
+            if notebook.endswith(".ipynb"):
+                cmd = [
+                    "papermill",
+                    "--no-progress-bar",
+                    os.path.basename(notebook),
+                    "-k",
+                    environment,
+                    "test.ipynb",
+                ]
+            elif notebook.endswith(".py"):
+                cmd = ["python", os.path.basename(notebook)]
+            else:
+                raise ValueError(f"Unhandled test file extension: {notebook}")
+
+            result = self.env_manager.curator_run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=timeout,
+                check=True,
+            )
+
+            # Even for errors, we want to return the output, including stderr
+            err = result.returncode != 0
+            output += result.stdout
+            return err, output
+
 
     def _print_divider(self, title: str, char: str = "*", width: int = 100) -> str:
         """Create a divider string with centered title."""
