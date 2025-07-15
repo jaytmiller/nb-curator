@@ -17,7 +17,6 @@ class NotebookImportProcessor:
             r"^(?:import\s+([a-zA-Z0-9_\.]+))|(?:from\s+([a-zA-Z0-9_\.]+)\s+import)"
         )
 
-
     def extract_imports(self, notebook_paths: List[str]) -> Dict[str, List[str]]:
         """Extract import statements from notebooks."""
         import_to_nb: Dict[str, List[str]] = {}

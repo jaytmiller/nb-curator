@@ -99,7 +99,6 @@ class SpiInjector:
         )
         return spi_extra_requirements
 
-
     def find_spi_pip_requirements_files(self) -> List[Path]:
         self._init_patterns()
         self.env_pip.unlink(missing_ok=True)

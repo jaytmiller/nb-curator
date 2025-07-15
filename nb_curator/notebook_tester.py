@@ -111,7 +111,9 @@ class NotebookTester:
 
         return err, notebook, output
 
-    def _test_single_notebook_core(self, notebook: str, environment: str, timeout: int) -> Tuple[bool, str, str]:
+    def _test_single_notebook_core(
+        self, notebook: str, environment: str, timeout: int
+    ) -> Tuple[bool, str, str]:
         """Test a single notebook in isolation."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -153,7 +155,6 @@ class NotebookTester:
             err = result.returncode != 0
             output += result.stdout
             return err, output
-
 
     def _print_divider(self, title: str, char: str = "*", width: int = 100) -> str:
         """Create a divider string with centered title."""

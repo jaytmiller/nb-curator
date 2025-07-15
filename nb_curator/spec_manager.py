@@ -42,7 +42,9 @@ class SpecManager:
 
     @classmethod
     def load_and_validate(
-        cls, logger: CuratorLogger, spec_file: str, 
+        cls,
+        logger: CuratorLogger,
+        spec_file: str,
     ) -> Optional["SpecManager"]:
         """Factory method to load and validate a spec file."""
         manager = cls(logger)
@@ -50,7 +52,7 @@ class SpecManager:
             return manager
         return None
 
-    def load_spec(self, spec_file: str|Path) -> bool:
+    def load_spec(self, spec_file: str | Path) -> bool:
         """Load YAML specification file."""
         try:
             yaml = self.get_yaml()
@@ -99,9 +101,7 @@ class SpecManager:
     ) -> bool:
         """Update spec with computed outputs and save to file."""
         try:
-            self.logger.info(
-                f"Revising spec file {self._source_file} -> {output_dir}"
-            )
+            self.logger.info(f"Revising spec file {self._source_file} -> {output_dir}")
             for key, value in additional_outputs.items():
                 if isinstance(value, list):
                     value = [str(item) for item in value]
@@ -246,7 +246,9 @@ class SpecManager:
         notebook_paths = []
         header_root = self._spec["image_spec_header"].get("root_nb_directory", "")
         for entry in self._spec["selected_notebooks"]:
-            selection_repo = entry.get("nb_repo", self._spec["image_spec_header"]["nb_repo"])
+            selection_repo = entry.get(
+                "nb_repo", self._spec["image_spec_header"]["nb_repo"]
+            )
             clone_dir = self._get_repo_dir(repos_dir, selection_repo)
             if not clone_dir:
                 self.logger.error(f"Repository not set up: {clone_dir}")
@@ -256,7 +258,9 @@ class SpecManager:
             notebook_paths.extend(
                 self._process_directory_entry(entry, clone_dir, final_notebook_root)
             )
-        self.logger.info(f"Found {len(notebook_paths)} notebooks in all notebook repositories.")
+        self.logger.info(
+            f"Found {len(notebook_paths)} notebooks in all notebook repositories."
+        )
         return notebook_paths
 
     def _get_repo_dir(self, repos_dir: Path, nb_repo: str) -> Optional[Path]:
@@ -275,17 +279,20 @@ class SpecManager:
 
         include_subdirs = entry.get("include_subdirs", [r"."])
         included_notebooks = self._only_included_non_files(
-            possible_notebooks, include_subdirs)
+            possible_notebooks, include_subdirs
+        )
 
         exclude_subdirs = entry.get("exclude_subdirs", [])
         remaining_notebooks = self._exclude_notebooks(
             included_notebooks, exclude_subdirs
         )
-        self.logger.debug(f"Selected {len(remaining_notebooks)} notebooks under {base_path}.")
+        self.logger.debug(
+            f"Selected {len(remaining_notebooks)} notebooks under {base_path}."
+        )
         return remaining_notebooks
 
-    def _only_included_non_files(self,
-        possible_notebooks: list[Path], include_regexes: list[str]
+    def _only_included_non_files(
+        self, possible_notebooks: list[Path], include_regexes: list[str]
     ) -> list[Path]:
         included_notebooks = []
         for nb_path in possible_notebooks:
@@ -294,13 +301,15 @@ class SpecManager:
                 continue
             for include in include_regexes:
                 if re.search(include, str(nb_path)):
-                    self.logger.debug(f"Including notebook {nb_path} based on regex: '{include}'")
+                    self.logger.debug(
+                        f"Including notebook {nb_path} based on regex: '{include}'"
+                    )
                     included_notebooks.append(nb_path)
                     break
         return included_notebooks
-    
-    def _exclude_notebooks(self,
-        included_notebooks: list[Path], exclude_subdirs: list[str]
+
+    def _exclude_notebooks(
+        self, included_notebooks: list[Path], exclude_subdirs: list[str]
     ) -> list[str]:
         notebook_paths = []
         for nb_path in included_notebooks:
@@ -309,10 +318,10 @@ class SpecManager:
                 continue
             for exclude in exclude_subdirs:
                 if re.search(exclude, str(nb_path)):
-                    self.logger.debug(f"Excluding notebook {nb_path} based on regex: '{exclude}'")
+                    self.logger.debug(
+                        f"Excluding notebook {nb_path} based on regex: '{exclude}'"
+                    )
                     break
             else:
                 notebook_paths.append(str(nb_path))
         return notebook_paths
-
-

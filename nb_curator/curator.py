@@ -21,26 +21,22 @@ class NotebookCurator:
         self.config = config
         self.logger = CuratorLogger(config.verbose, config.debug)
         self.spec_manager = SpecManager.load_and_validate(
-            self.logger, self.config.spec_file,
+            self.logger,
+            self.config.spec_file,
         )
         self.env_manager = EnvironmentManager(
-            self.logger, self.config.micromamba_path,
+            self.logger,
+            self.config.micromamba_path,
         )
         self.repo_manager = RepositoryManager(
             self.logger, config.repos_dir, self.env_manager
         )
-        self.notebook_import_processor = NotebookImportProcessor(
-            self.logger
-        )
+        self.notebook_import_processor = NotebookImportProcessor(self.logger)
         self.tester = NotebookTester(
             self.logger, self.env_manager, config.jobs, config.timeout
         )
-        self.compiler = RequirementsCompiler(
-            self.logger, self.env_manager
-        )
-        self.injector = get_injector(
-            self.logger, config.repos_dir, self.spec_manager
-        )
+        self.compiler = RequirementsCompiler(self.logger, self.env_manager)
+        self.injector = get_injector(self.logger, config.repos_dir, self.spec_manager)
 
         # Create output directories
         os.makedirs(config.output_dir, exist_ok=True)
@@ -66,7 +62,7 @@ class NotebookCurator:
 
         # Regardless of which steps are selected below, we can recompute
         # repo_urls always as a matter of simplicity.
-        notebook_repo_urls = self.spec_manager.get_repository_urls() 
+        notebook_repo_urls = self.spec_manager.get_repository_urls()
         repo_urls = notebook_repo_urls + [self.injector.url]
 
         # Setup repositories if cloning requested.  Otherwise verify clones exist as needed,
@@ -101,7 +97,9 @@ class NotebookCurator:
 
         # Install packages if requested
         if self.config.install_env:
-            if not self.env_manager.install_packages(self.environment_name, [pip_output_file]):
+            if not self.env_manager.install_packages(
+                self.environment_name, [pip_output_file]
+            ):
                 return False
             if not self.env_manager.test_imports(self.environment_name, test_imports):
                 return False

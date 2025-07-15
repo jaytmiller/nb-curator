@@ -8,6 +8,7 @@ from typing import Optional
 
 DEFAULT_MICROMAMBA_PATH = os.environ.get("NBC_MM", "") + "/bin/" + "micromamba"
 
+
 @dataclass
 class CuratorConfig:
     """Configuration class for NotebookCurator."""

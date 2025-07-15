@@ -129,7 +129,7 @@ def parse_args():
 def main():
     """Main entry point for the CLI."""
     args = parse_args()
-    
+
     # Create configuration
     config = CuratorConfig(
         spec_file=args.spec_file,

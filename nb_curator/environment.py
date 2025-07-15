@@ -108,9 +108,13 @@ class EnvironmentManager:
         """Install the compiled package list."""
         self.logger.info(f"Installing packages from: {requirements_paths}")
 
-        cmd = ["uv", "pip", "install",]
+        cmd = [
+            "uv",
+            "pip",
+            "install",
+        ]
         for path in requirements_paths:
-            cmd +=  ["-r", str(path)]
+            cmd += ["-r", str(path)]
 
         # Install packages using uv
         result = self.env_run(environment_name, cmd, check=False)
