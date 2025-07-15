@@ -82,10 +82,12 @@ class EnvironmentManager:
             micromamba_spec = "python=3.10"
         self.logger.info(f"Creating environment: {environment_name}")
         mm_prefix = [self.micromamba_path, "create", "-n", environment_name]
-        command = mm_prefix + ["-c", "conda-forge"]
-        result = self.curator_run(command)
+        command = mm_prefix + ["-c", "conda-forge"] + [micromamba_spec]
+        result = self.curator_run(command, check=False)
         return self.handle_result(
-            result, f"Failed to create environment {environment_name}"
+            result,
+            f"Failed to create environment {environment_name}",
+            f"Environment {environment_name} created",
         )
 
     def delete_environment(
@@ -95,7 +97,7 @@ class EnvironmentManager:
         self.logger.info(f"Deleting environment: {environment_name}")
         mm_prefix = [self.micromamba_path, "env", "remove", "-n", environment_name]
         command = mm_prefix + ["--yes"]
-        result = self.curator_run(command)
+        result = self.curator_run(command, check=False)
         return self.handle_result(
             result, f"Failed to delete environment {environment_name}"
         )
