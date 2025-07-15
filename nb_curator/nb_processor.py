@@ -32,9 +32,8 @@ class NotebookImportProcessor:
                     if imp not in import_to_nb:
                         import_to_nb[imp] = []
                     import_to_nb[imp].append(nb_path_str)
-
         self.logger.info(f"Extracted {len(import_to_nb)} imports")
-        return import_to_nb
+        return sorted(list(import_to_nb.keys()))
 
     def _read_notebook_json(self, nb_path: str) -> Optional[dict]:
         """Read and parse a notebook file as JSON."""

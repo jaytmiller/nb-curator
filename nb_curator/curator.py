@@ -172,6 +172,7 @@ class NotebookCurator:
             pip_requirements_files=requirements_files,
             mamba_requirements_files=mamba_files,
             notebook_repo_urls=notebook_repo_urls,
+            injector_url=self.injector.url,
             test_imports=test_imports,
             test_notebooks=notebook_paths,
         )
