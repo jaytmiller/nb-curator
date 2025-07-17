@@ -59,124 +59,155 @@ class NotebookCurator:
 
     def _execute_workflow(self) -> bool:
         """Execute the complete curation workflow."""
-
-        # Regardless of which steps are selected below, we can recompute
-        # repo_urls always as a matter of simplicity.
+    
+        # Setup repositories
         notebook_repo_urls = self.spec_manager.get_repository_urls()
         repo_urls = notebook_repo_urls + [self.injector.url]
-
-        # Setup repositories if cloning requested.  Otherwise verify clones exist as needed,
-        # since most or all steps below require these to be available.
+    
         if not self.repo_manager.setup_repos(self.config.clone_repos, repo_urls):
             return False
 
-        # Handle requirements compilation
+        # Handle requirements compilation or ensure files exist
         if self.config.compile_env:
-            self._handle_requirements_compilation(notebook_repo_urls)
+            if not self._compile_requirements(notebook_repo_urls):
+                return False
+        else:
+            self._ensure_output_files_exist()
 
-        # By fetching these from the revised spec, we ensure that they're defined
-        # here even if we're not recompiling. This enables us to use a completed
-        # spec for installation, testing, and subsequent steps.
-        mamba_spec_outfile = self.spec_manager.get_output_data(
-            "mamba_spec_outfile", None
-        )
+        # Get file paths (guaranteed to exist now)
+        mamba_spec_outfile = self.spec_manager.get_output_data("mamba_spec_outfile", None)
         pip_output_file = self.spec_manager.get_output_data("pip_output_file", None)
         test_imports = self.spec_manager.get_output_data("test_imports", [])
         notebook_paths = self.spec_manager.get_output_data("test_notebooks", [])
-        package_versions = self.spec_manager.get_output_data("package_versions", {})
 
-        # Initialize target environment if requested.
-        # We assume nb-curator is running in nbcurator bootstrap environment or equivalent.
+        # Environment operations
         if self.config.init_env:
-            if not self.env_manager.create_environment(
-                self.environment_name, mamba_spec_outfile
-            ):
-                return False
-            if not self.env_manager.register_environment(self.environment_name):
+            if not self._initialize_environment(mamba_spec_outfile):
                 return False
 
-        # Install packages if requested
         if self.config.install_env:
-            if not self.env_manager.install_packages(
-                self.environment_name, [pip_output_file]
-            ):
-                return False
-            if not self.env_manager.test_imports(self.environment_name, test_imports):
+            if not self._install_packages(pip_output_file, test_imports):
                 return False
 
-        # Test notebooks if requested, config.test_notebooks is a regex or None, default=.* (all)
+        # Testing
         if self.config.test_notebooks:
-            filtered_notebooks = self.tester.filter_notebooks(
-                notebook_paths, self.config.test_notebooks
-            )
-            if not self.tester.test_notebooks(filtered_notebooks):
+            if not self._test_notebooks(notebook_paths):
                 return False
 
-        # Inject the computed outputs of the spec into a clone of the build environment.
+        # Cleanup operations
         if self.config.inject_spi:
             self.injector.inject()
 
-        # Delete all repos (and config.repo_dir) if requested to clean up.
         if self.config.delete_repos:
             if not self.repo_manager.delete_repos():
                 return False
 
-        # Delete test/spec environment if requested, leave the nb-curator base environment alone.
         if self.config.delete_env:
-            if not self.env_manager.unregister_environment(self.environment_name):
-                return False
-            if not self.env_manager.delete_environment(self.environment_name):
+            if not self._cleanup_environment():
                 return False
 
         return True
 
-    def _handle_requirements_compilation(self, notebook_repo_urls: List[str]) -> bool:
-        """Handle requirements compilation workflow."""
-        # Identify notebook paths --> notebooks, requirements, imports
+    def _compile_requirements(self, notebook_repo_urls: List[str]) -> bool:
+        """Compile requirements and update spec."""
+        # Collect notebooks and extract imports
         notebook_paths = self.spec_manager.collect_notebook_paths(
             self.config.repos_dir, notebook_repo_urls
         )
         if not notebook_paths:
             return False
 
-        # Extract imports
         test_imports = self.notebook_import_processor.extract_imports(notebook_paths)
         if not test_imports:
-            self.logger.warning(
-                "No imports found in notebooks. Import tests will be skipped."
-            )
+            self.logger.warning("No imports found in notebooks. Import tests will be skipped.")
 
-        moniker = self.spec_manager.get_moniker()
-
-        # Generate mamba spec for environment
-        kernel_name = self.spec_manager.kernel_name
-        mamba_spec_outfile = self.config.output_dir / f"{moniker}-mamba-spec.yml"
-        mamba_files = self.injector.find_spi_mamba_requirements_files()
-        mamba_spec = self.compiler.generate_mamba_spec(
-            kernel_name, mamba_files, mamba_spec_outfile
-        )
-
-        # Compile requirements for pip version constraint solution
-        pip_output_file = self.config.output_dir / f"{moniker}-pip-compile.txt"
-        requirements_files = self.compiler.find_requirements_files(notebook_paths)
-        requirements_files += self.injector.find_spi_pip_requirements_files()
-        package_versions = self.compiler.compile_requirements(
-            requirements_files, pip_output_file
-        )
-
-        # Store results in spec
+        # Generate mamba spec
+        mamba_spec_outfile, mamba_spec = self._generate_mamba_spec(notebook_repo_urls)
+    
+        # Generate pip requirements
+        pip_output_file, package_versions, requirements_files = self._generate_pip_requirements(notebook_paths)
+    
+        # Update spec with all results
         self.spec_manager.revise_and_save(
             output_dir=self.config.output_dir,
             package_versions=package_versions,
             mamba_spec=mamba_spec,
             pip_requirements_files=requirements_files,
-            mamba_requirements_files=mamba_files,
+            mamba_requirements_files=self.injector.find_spi_mamba_requirements_files(),
             notebook_repo_urls=notebook_repo_urls,
             injector_url=self.injector.url,
             test_imports=test_imports,
             test_notebooks=notebook_paths,
+            mamba_spec_outfile=str(mamba_spec_outfile),
+            pip_output_file=str(pip_output_file),
         )
-        return mamba_spec_outfile, pip_output_file, package_versions
+    
+        return True
+
+    def _initialize_environment(self, mamba_spec_outfile: str) -> bool:
+        """Initialize the target environment."""
+        if not self.env_manager.create_environment(self.environment_name, mamba_spec_outfile):
+            return False
+        return self.env_manager.register_environment(self.environment_name)
+
+    def _install_packages(self, pip_output_file: str, test_imports: List[str]) -> bool:
+        """Install packages and test imports."""
+        if not self.env_manager.install_packages(self.environment_name, [pip_output_file]):
+            return False
+        return self.env_manager.test_imports(self.environment_name, test_imports)
+
+    def _test_notebooks(self, notebook_paths: List[str]) -> bool:
+        """Test notebooks matching the configured pattern."""
+        filtered_notebooks = self.tester.filter_notebooks(
+            notebook_paths, self.config.test_notebooks
+        )
+        return self.tester.test_notebooks(filtered_notebooks)
+
+    def _cleanup_environment(self) -> bool:
+        """Clean up the test environment."""
+        self.env_manager.unregister_environment(self.environment_name)
+        return self.env_manager.delete_environment(self.environment_name)
+
+    def _ensure_output_files_exist(self):
+        """Ensure mamba spec and pip requirements files exist on filesystem from spec data."""
+        mamba_spec_outfile = self.spec_manager.get_output_data("mamba_spec_outfile", None)
+        pip_output_file = self.spec_manager.get_output_data("pip_output_file", None)
+        
+        # Recreate files from spec if they don't exist
+        if mamba_spec_outfile and not os.path.exists(mamba_spec_outfile):
+            mamba_spec = self.spec_manager.get_output_data("mamba_spec", {})
+            self.compiler.write_mamba_spec_file(mamba_spec_outfile, mamba_spec)
+        
+        if pip_output_file and not os.path.exists(pip_output_file):
+            package_versions = self.spec_manager.get_output_data("package_versions", {})
+            self.compiler.write_pip_requirements_file(pip_output_file, package_versions)
+
+    def _generate_mamba_spec(self, notebook_repo_urls: List[str]) -> str:
+        """Generate mamba environment specification."""
+        moniker = self.spec_manager.get_moniker()
+        kernel_name = self.spec_manager.kernel_name
+        mamba_spec_outfile = self.config.output_dir / f"{moniker}-mamba-spec.yml"
+        mamba_files = self.injector.find_spi_mamba_requirements_files()
+        
+        mamba_spec = self.compiler.generate_mamba_spec(
+            kernel_name, mamba_files, mamba_spec_outfile
+        )
+        
+        return mamba_spec_outfile, mamba_spec
+
+    def _generate_pip_requirements(self, notebook_paths: List[str]) -> tuple:
+        """Generate pip requirements compilation."""
+        moniker = self.spec_manager.get_moniker()
+        pip_output_file = self.config.output_dir / f"{moniker}-pip-compile.txt"
+        
+        requirements_files = self.compiler.find_requirements_files(notebook_paths)
+        requirements_files += self.injector.find_spi_pip_requirements_files()
+        
+        package_versions = self.compiler.compile_requirements(
+            requirements_files, pip_output_file
+        )
+        
+        return pip_output_file, package_versions, requirements_files
 
     def print_log_counters(self):
         """Print summary of logged messages."""

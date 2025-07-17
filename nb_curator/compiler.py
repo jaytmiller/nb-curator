@@ -103,6 +103,7 @@ class RequirementsCompiler:
         ]
         spi_packages = self.read_package_versions(mamba_files)
         dependencies += spi_packages
+        dependencies += EnvironmentManager.CURATOR_PACKAGES
         dependencies += [
             {"pip": []},
         ]
@@ -143,3 +144,17 @@ class RequirementsCompiler:
 
         result = self.env_manager.curator_run(cmd, check=False)
         return self.env_manager.handle_result(result, "uv compile failed:")
+
+
+    def write_mamba_spec_file(self, filepath: str, mamba_spec: dict):
+        """Write mamba spec dictionary to YAML file."""
+        with open(filepath, 'w') as f:
+            yaml.dump(mamba_spec, f)
+    
+    def write_pip_requirements_file(self, filepath: str, package_versions: list):
+        """Write package versions to pip requirements file."""
+        with open(filepath, 'w') as f:
+            for package_version in package_versions:
+                f.write(f"{package_version}\n")
+
+

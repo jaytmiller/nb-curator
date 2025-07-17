@@ -28,7 +28,8 @@ class EnvironmentManager:
         text=True,
     ) -> str | CompletedProcess[Any] | None:
         """Run a command in the current environment."""
-        self.logger.debug(f"Running command: {command}")
+        self.logger.debug(f"Running command with no shell: {command}")
+        self.logger.debug(f"For trying it this may work anyway: {' '.join(command)}")
         result = subprocess.run(
             command,
             capture_output=capture_output,
@@ -81,8 +82,8 @@ class EnvironmentManager:
         if not micromamba_spec:
             micromamba_spec = "python=3.10"
         self.logger.info(f"Creating environment: {environment_name}")
-        mm_prefix = [self.micromamba_path, "create", "-n", environment_name]
-        command = mm_prefix + ["-c", "conda-forge"] + [micromamba_spec]
+        mm_prefix = [self.micromamba_path, "create", "--yes", "-n", environment_name]
+        command = mm_prefix + ["-c", "conda-forge"] + ["-f", micromamba_spec]
         result = self.curator_run(command, check=False)
         return self.handle_result(
             result,
@@ -99,7 +100,8 @@ class EnvironmentManager:
         command = mm_prefix + ["--yes"]
         result = self.curator_run(command, check=False)
         return self.handle_result(
-            result, f"Failed to delete environment {environment_name}"
+            result, f"Failed to delete environment {environment_name}",
+            f"Environment {environment_name} deleted",
         )
 
     def install_packages(

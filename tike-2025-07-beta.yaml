@@ -387,14 +387,14 @@ out:
       - nodejs>=22.0
       - pip: []
   pip_requirements_files:
-    - references/mast_notebooks/notebooks/TESS/beginner_how_to_use_lc/requirements.txt
     - references/tike_content/content/notebooks/data-access/requirements.txt
-    - references/tike_content/content/notebooks/zooniverse_view_lightcurve/requirements.txt
-    - references/tike_content/content/notebooks/tglc/requirements.txt
-    - references/tike_content/content/notebooks/lcviz-tutorial/requirements.txt
-    - references/mast_notebooks/notebooks/Kepler/identifying_transiting_planet_signals/requirements.txt
-    - references/mast_notebooks/notebooks/Kepler/instrumental_noise_4_electronic_noise/requirements.txt
+    - references/mast_notebooks/notebooks/TESS/beginner_how_to_use_lc/requirements.txt
     - references/mast_notebooks/notebooks/TESS/beginner_tour_lc_tp/requirements.txt
+    - references/tike_content/content/notebooks/tglc/requirements.txt
+    - references/mast_notebooks/notebooks/Kepler/identifying_transiting_planet_signals/requirements.txt
+    - references/tike_content/content/notebooks/lcviz-tutorial/requirements.txt
+    - references/mast_notebooks/notebooks/Kepler/instrumental_noise_4_electronic_noise/requirements.txt
+    - references/tike_content/content/notebooks/zooniverse_view_lightcurve/requirements.txt
     - references/science-platform-images/deployments/common/common-env/required.pip
     - references/science-platform-images/deployments/common/common-env/testing.pip
     - references/science-platform-images/deployments/common/common-env/jupyter.pip
@@ -424,3 +424,5 @@ out:
     - references/mast_notebooks/notebooks/Kepler/identifying_transiting_planet_signals/identifying_transiting_planet_signals.ipynb
     - references/mast_notebooks/notebooks/Kepler/instrumental_noise_4_electronic_noise/instrumental_noise_4_electronic_noise.ipynb
   injector_url: https://github.com/spacetelescope/science-platform-images.git
+  mamba_spec_outfile: tike-2025.07-beta-mamba-spec.yml
+  pip_output_file: tike-2025.07-beta-pip-compile.txt

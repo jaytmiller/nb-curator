@@ -110,6 +110,17 @@ class SpecManager:
         except Exception as e:
             return self.logger.exception(e, f"Error revising spec file: {e}")
 
+    def set_output_data(self, key: str, value: Any) -> None:
+        """Set data in the output section."""
+        if "out" not in self._spec:
+            self._spec["out"] = {}
+        self._spec["out"][key] = value
+        self.logger.debug(f"Setting output data: {key} -> {value}")
+
+    def get_output_data(self, key: str, default: Any = None) -> Any:
+        """Get data from the output section."""
+        return self._spec.get("out", {}).get(key, default)
+
     # Property-based access to spec data
     @property
     def deployment_name(self) -> str:
@@ -140,16 +151,6 @@ class SpecManager:
     def selected_notebooks(self) -> List[Dict[str, Any]]:
         self._ensure_validated()
         return self._spec["selected_notebooks"]
-
-    def set_output_data(self, key: str, value: Any) -> None:
-        """Set data in the output section."""
-        if "out" not in self._spec:
-            self._spec["out"] = {}
-        self._spec["out"][key] = value
-
-    def get_output_data(self, key: str, default: Any = None) -> Any:
-        """Get data from the output section."""
-        return self._spec.get("out", {}).get(key, default)
 
     def get_moniker(self) -> str:
         """Get a filesystem-safe version of the image name."""
