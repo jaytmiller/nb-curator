@@ -1,38 +1,15 @@
-"""Unified specification management with validation and persistence."""
-
 import os.path
 import re
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-
-# from ruamel.yaml import YAML
+import copy
 
 from .logging import CuratorLogger
+from .utils import get_yaml
 
 
 class SpecManager:
     """Manages specification loading, validation, access, and persistence."""
-
-    ALLOWED_KEYWORDS = {
-        "image_spec_header": [
-            "image_name",
-            "description",
-            "valid_on",
-            "expires_on",
-            "python_version",
-            "nb_repo",
-            "root_nb_directory",
-            "deployment_name",
-            "kernel_name",
-        ],
-        "selected_notebooks": [
-            "nb_repo",
-            "root_nb_directory",
-            "include_subdirs",
-            "exclude_subdirs",
-        ],
-        "out": {},
-    }
 
     def __init__(self, logger: CuratorLogger):
         self.logger = logger
@@ -52,63 +29,7 @@ class SpecManager:
             return manager
         return None
 
-    def load_spec(self, spec_file: str | Path) -> bool:
-        """Load YAML specification file."""
-        try:
-            yaml = self.get_yaml()
-            self._source_file = Path(spec_file)
-            with self._source_file.open("r") as f:
-                self._spec = yaml.load(f)
-            return self.logger.info(f"Successfully loaded spec from {str(spec_file)}")
-        except Exception as e:
-            return self.logger.exception(e, f"Failed to load YAML spec: {e}")
-
-    def validate(self) -> bool:
-        """Perform comprehensive validation on the loaded specification."""
-        if not self._spec:
-            return self.logger.error("Spec did not loaded / defined, cannot validate.")
-        validated = (
-            self._validate_top_level_structure()
-            and self._validate_header_section()
-            and self._validate_selected_notebooks_section()
-            and self._validate_directory_repos()
-        )
-        if not validated:
-            return self.logger.error("Spec validation failed.")
-        self._is_validated = True
-        return self.logger.info("Spec validated.")
-
-    def output_spec(self, output_dir: Path | str) -> Path:
-        """The output path for the spec file."""
-        return Path(output_dir) / self._source_file.name
-
-    def save_spec(self, output_dir: Path | str) -> bool:
-        """Save the current spec to a file."""
-        try:
-            output_file = self.output_spec(output_dir)
-            self.logger.info(f"Saving spec file to {output_file}")
-            yaml = self.get_yaml()
-            with output_file.open("w") as f:
-                yaml.dump(self._spec, f)
-            return self.logger.info(f"Spec file written to {output_file}")
-        except Exception as e:
-            return self.logger.exception(e, f"Error saving spec file: {e}")
-
-    def revise_and_save(
-        self,
-        output_dir: Path | str,
-        **additional_outputs,
-    ) -> bool:
-        """Update spec with computed outputs and save to file."""
-        try:
-            self.logger.info(f"Revising spec file {self._source_file} -> {output_dir}")
-            for key, value in additional_outputs.items():
-                if isinstance(value, list):
-                    value = [str(item) for item in value]
-                self.set_output_data(key, value)
-            return self.save_spec(output_dir)
-        except Exception as e:
-            return self.logger.exception(e, f"Error revising spec file: {e}")
+    # ----------------------------- load, save, outputs  ---------------------------
 
     def set_output_data(self, key: str, value: Any) -> None:
         """Set data in the output section."""
@@ -121,7 +42,67 @@ class SpecManager:
         """Get data from the output section."""
         return self._spec.get("out", {}).get(key, default)
 
-    # Property-based access to spec data
+    def load_spec(self, spec_file: str | Path) -> bool:
+        """Load YAML specification file."""
+        try:
+            self._source_file = Path(spec_file)
+            with self._source_file.open("r") as f:
+                self._spec = get_yaml().load(f)
+            return self.logger.info(f"Successfully loaded spec from {str(spec_file)}.")
+        except Exception as e:
+            return self.logger.exception(e, f"Failed to load YAML spec: {e}")
+
+    def output_spec(self, output_dir: Path | str) -> Path:
+        """The output path for the spec file."""
+        return Path(output_dir) / self._source_file.name
+
+    def save_spec(self, output_dir: Path | str) -> bool:
+        output_filepath = self.output_spec(output_dir)
+        return self._save_spec(output_filepath)
+
+    def _save_spec(self, output_filepath: Path | str) -> bool:
+        """Save the current YAML spec to a file."""
+        try:
+            self.logger.info(f"Saving spec file to {output_filepath}.")
+            with output_filepath.open("w") as f:
+                get_yaml().dump(self._spec, f)
+            return self.logger.info(f"Spec file saved to {output_filepath}.")
+        except Exception as e:
+            return self.logger.exception(e, f"Error saving YAML spec file to {output_filepath}: {e}")
+
+    def revise_and_save(
+        self,
+        output_dir: Path | str,
+        **additional_outputs,
+    ) -> bool:
+        """Update spec with computed outputs and save to file."""
+        try:
+            self.logger.info(f"Revising spec file {self._source_file} -> {self.output_spec(output_dir)}.")
+            for key, value in additional_outputs.items():
+                if isinstance(value, list):
+                    value = [str(item) for item in value]
+                self.set_output_data(key, value)
+            return self.save_spec(output_dir)
+        except Exception as e:
+            return self.logger.exception(e, f"Error revising spec file: {e}")
+
+    def reset_spec(self) -> bool:
+        """Delete the output field of the spec and make sure the source file reflects it."""
+        try:
+            del self._spec["out"]
+            self.logger.info("Deleted output section of spec file added by nb-curator.")
+        except KeyError:
+            self.logger.warning("The output section of spec file that would be added by nb-curator does not exist.")
+        return self.validate() and self._save_spec(self._source_file)  # make sure the source file is clear too anyway
+
+    def reload_spec(self):
+        """Reload the spec source file."""
+        if self.load_spec(self._source_file) and self.validate():
+            return self._save_spec(self._source_file)
+        else:
+            return False
+
+    # ---------------------------- Property-based read access to spec data -------------------
     @property
     def deployment_name(self) -> str:
         self._ensure_validated()
@@ -157,24 +138,55 @@ class SpecManager:
         self._ensure_validated()
         return self.image_name.replace(" ", "-").lower()
 
-    # Raw access for backward compatibility or special cases
+    # Raw read/write access for backward compatibility or special cases
     def to_dict(self) -> Dict[str, Any]:
         """Return the raw spec dictionary."""
-        return self._spec.copy()
+        return copy.deepcopy(self._spec)
+
+    # ---------------------------- validation ----------------------------------
+
+    ALLOWED_KEYWORDS = {
+        "image_spec_header": [
+            "image_name",
+            "description",
+            "valid_on",
+            "expires_on",
+            "python_version",
+            "nb_repo",
+            "root_nb_directory",
+            "deployment_name",
+            "kernel_name",
+        ],
+        "selected_notebooks": [
+            "nb_repo",
+            "root_nb_directory",
+            "include_subdirs",
+            "exclude_subdirs",
+        ],
+        "out": {},
+    }
+
+    def validate(self) -> bool:
+        """Perform comprehensive validation on the loaded specification."""
+        self._is_validated = False
+        if not self._spec:
+            return self.logger.error("Spec did not loaded / defined, cannot validate.")
+        validated = (
+            self._validate_top_level_structure()
+            and self._validate_header_section()
+            and self._validate_selected_notebooks_section()
+            and self._validate_directory_repos()
+        )
+        if not validated:
+            return self.logger.error("Spec validation failed.")
+        self._is_validated = True
+        self.logger.debug("Spec validated.")
+        return True
 
     def _ensure_validated(self) -> None:
         """Ensure the spec has been validated before access."""
         if not self._is_validated:
             raise RuntimeError("Spec must be validated before accessing data")
-
-    def get_yaml(self) -> "YAML":
-        """Return configured ruamel.yaml instance."""
-        from ruamel.yaml import YAML
-
-        yaml = YAML()
-        yaml.preserve_quotes = True
-        yaml.indent(mapping=2, sequence=4, offset=2)
-        return yaml
 
     # Validation methods (moved from SpecValidator)
     def _validate_top_level_structure(self) -> bool:
@@ -232,6 +244,8 @@ class SpecManager:
         # Implementation details...
         return True
 
+    # -------------------------------- notebook and repository collection --------------------------------------
+
     def get_repository_urls(self) -> List[str]:
         """Get all unique repository URLs from the spec."""
         self._ensure_validated()
@@ -256,9 +270,8 @@ class SpecManager:
                 continue
             entry_root = entry.get("root_nb_directory")
             final_notebook_root = entry_root or header_root
-            notebook_paths.extend(
-                self._process_directory_entry(entry, clone_dir, final_notebook_root)
-            )
+            entry_paths = self._process_directory_entry(entry, clone_dir, final_notebook_root)
+            notebook_paths.extend(entry_paths)
         self.logger.info(
             f"Found {len(notebook_paths)} notebooks in all notebook repositories."
         )
@@ -288,7 +301,7 @@ class SpecManager:
             included_notebooks, exclude_subdirs
         )
         self.logger.debug(
-            f"Selected {len(remaining_notebooks)} notebooks under {base_path}."
+            f"Selected {len(remaining_notebooks)} notebooks under {base_path}: {remaining_notebooks}."
         )
         return remaining_notebooks
 
@@ -326,3 +339,4 @@ class SpecManager:
             else:
                 notebook_paths.append(str(nb_path))
         return notebook_paths
+

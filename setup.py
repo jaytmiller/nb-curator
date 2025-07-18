@@ -42,9 +42,9 @@ setup(
             "mypy>=1.0.0",
         ],
     },
-    entry_points={
-        "console_scripts": [
-            "nb-curator=nb_curator.cli:main",
-        ],
-    },
+    # entry_points={
+    #    "console_scripts": [
+    #        "nb-curator=nb_curator.cli:main",
+    #    ],
+    # },
 )

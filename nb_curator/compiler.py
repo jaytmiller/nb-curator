@@ -6,8 +6,7 @@ from typing import List, Optional
 
 from .logging import CuratorLogger
 from .environment import EnvironmentManager
-
-# from ruamel.yaml import YAML
+from .utils import get_yaml
 
 
 class RequirementsCompiler:
@@ -34,7 +33,7 @@ class RequirementsCompiler:
             if req_file.exists():
                 requirements_files.append(req_file)
                 self.logger.debug(f"Found requirements file: {req_file}")
-        self.logger.info(f"Found {len(requirements_files)} requirements.txt files")
+        self.logger.info(f"Found {len(requirements_files)} notebook requirements.txt files.")
         return requirements_files
 
     def compile_requirements(
@@ -46,14 +45,14 @@ class RequirementsCompiler:
         into other commands and specs.
         """
         if not requirements_files:
-            return self.logger.warning("No requirements files to compile")
-        self.logger.info("Compiling requirements to determine package versions")
+            return self.logger.warning("No requirements files to compile.")
+        self.logger.info("Compiling combined pip requirements to determine package versions.")
         if not self._run_uv_compile(output_path, requirements_files):
-            self.logger.error("========== Failed compiling requirements ==========")
+            self.logger.error("========== Failed compiling combined pip requirements ==========")
             self.logger.error(self.annotated_requirements(requirements_files))
             return None
         package_versions = self.read_package_versions([output_path])
-        self.logger.info(f"Resolved {len(package_versions)} package versions")
+        self.logger.info(f"Compiled combined pip requirements to {len(package_versions)} package versions.")
         return package_versions
 
     def read_package_versions(self, requirements_files: List[Path]) -> List[str]:
@@ -95,8 +94,7 @@ class RequirementsCompiler:
         return "\n".join(f"{pkg:<20}  : {path:<55}" for pkg, path in result)
 
     def generate_mamba_spec(
-        self, kernel_name: str, mamba_files: List[str], output_path: Path
-    ) -> dict:
+        self, kernel_name: str, mamba_files: List[str]) -> dict:
         """Generate mamba environment specification."""
         dependencies = [
             f"python={self.python_version}" if self.python_version else "3",
@@ -112,21 +110,17 @@ class RequirementsCompiler:
             "channels": ["conda-forge"],
             "dependencies": dependencies,
         }
-        from ruamel.yaml import YAML
-
-        yaml = YAML()
-        with output_path.open("w") as f:
-            yaml.dump(mamba_spec, f)
         return mamba_spec
 
     def _run_uv_compile(
         self, output_file: Path, requirements_files: List[Path]
     ) -> bool:
-        """Run uv pip compile command."""
+        """Run uv pip compile command to resolve pip package constraints."""
         cmd = [
             "uv",
             "pip",
             "compile",
+            "--quiet",
             "--output-file",
             str(output_file),
             "--python",
@@ -139,17 +133,17 @@ class RequirementsCompiler:
             "--constraints",
         ] + [str(f) for f in requirements_files]
 
-        if self.logger.verbose:
-            cmd.append("--verbose")
+        # if self.logger.verbose:
+        #    cmd.append("--verbose")
 
         result = self.env_manager.curator_run(cmd, check=False)
-        return self.env_manager.handle_result(result, "uv compile failed:")
+        return self.env_manager.handle_result(result, "uv pip compile failed:")
 
 
     def write_mamba_spec_file(self, filepath: str, mamba_spec: dict):
         """Write mamba spec dictionary to YAML file."""
         with open(filepath, 'w') as f:
-            yaml.dump(mamba_spec, f)
+            get_yaml().dump(mamba_spec, f)
     
     def write_pip_requirements_file(self, filepath: str, package_versions: list):
         """Write package versions to pip requirements file."""

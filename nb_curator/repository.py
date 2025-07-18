@@ -45,9 +45,9 @@ class RepositoryManager:
         """Set up a local repository."""
         local_path = self._repo_path(repo_url)
         if not local_path.exists():
-            self.logger.error(f"Local repository path does not exist: {local_path}")
+            self.logger.error(f"Local repository path does not exist: {local_path}.")
             return None
-        self.logger.info(f"Using local repository at {local_path}")
+        self.logger.info(f"Using local repository at {local_path}.")
         return local_path
 
     def _setup_remote_repo(self, repo_url: str) -> Optional[Path]:
@@ -60,25 +60,25 @@ class RepositoryManager:
             try:
                 return self._clone_repo(repo_url, repo_path)
             except Exception as e:
-                self.logger.exception(e, f"Failed to setup repository {repo_url}")
+                self.logger.exception(e, f"Failed to setup repository {repo_url}.")
                 return None
 
     def _clone_repo(self, repo_url: str, repo_dir: Path) -> Path:
         """Clone a new repository."""
-        self.logger.info(f"Cloning repository {repo_url} to {repo_dir}")
+        self.logger.info(f"Cloning repository {repo_url} to {repo_dir}.")
         self.env_manager.curator_run(
             ["git", "clone", "--single-branch", repo_url, str(repo_dir)],
             check=True,
             timeout=300,
         )
-        self.logger.info(f"Successfully cloned repository to {repo_dir}")
+        self.logger.info(f"Successfully cloned repository to {repo_dir}.")
         return repo_dir
 
     def delete_repos(self) -> bool:
         """Clean up cloned repositories."""
         try:
             if self.repos_dir.exists():
-                self.logger.info(f"Cleaning up repository directory: {self.repos_dir}")
+                self.logger.info(f"Deleting repository directory: {self.repos_dir}.")
                 shutil.rmtree(self.repos_dir)
             return True
         except Exception as e:

@@ -8,12 +8,10 @@ from typing import List, Any
 
 from .logging import CuratorLogger
 
-
-CURATOR_PACKAGES = ["uv", "mamba", "papermill", "ipykernel", "jupyter", "setuptools"]
-
-
 class EnvironmentManager:
     """Manages Python environment setup and package installation."""
+
+    CURATOR_PACKAGES = ["uv", "mamba", "papermill", "ipykernel", "jupyter", "setuptools"]
 
     def __init__(self, logger: CuratorLogger, micromamba_path: str = "micromamba"):
         self.logger = logger
@@ -26,16 +24,21 @@ class EnvironmentManager:
         timeout=300,
         capture_output=True,
         text=True,
+        **extra_parameters,
     ) -> str | CompletedProcess[Any] | None:
         """Run a command in the current environment."""
-        self.logger.debug(f"Running command with no shell: {command}")
+        parameters = dict(
+            capture_output=capture_output,
+            text=text,
+            check=check,
+            timeout=timeout,
+        )
+        parameters.update(extra_parameters)
+        self.logger.debug(f"Running command with no shell: {command} {extra_parameters}")
         self.logger.debug(f"For trying it this may work anyway: {' '.join(command)}")
         result = subprocess.run(
             command,
-            capture_output=capture_output,
-            text=capture_output,
-            check=check,
-            timeout=timeout,
+            **extra_parameters
         )
         # self.logger.debug(f"Command output: {result.stdout}")
         if check:
@@ -76,14 +79,12 @@ class EnvironmentManager:
         return self.curator_run(mm_prefix + command, **keys)
 
     def create_environment(
-        self, environment_name: str, micromamba_spec: str | None = None
+        self, environment_name: str, micromamba_specfile: Path | None = None
     ) -> bool:
         """Create a new environment."""
-        if not micromamba_spec:
-            micromamba_spec = "python=3.10"
         self.logger.info(f"Creating environment: {environment_name}")
         mm_prefix = [self.micromamba_path, "create", "--yes", "-n", environment_name]
-        command = mm_prefix + ["-c", "conda-forge"] + ["-f", micromamba_spec]
+        command = mm_prefix + ["-c", "conda-forge"] + ["-f", str(micromamba_specfile)]
         result = self.curator_run(command, check=False)
         return self.handle_result(
             result,
@@ -96,8 +97,7 @@ class EnvironmentManager:
     ) -> str | CompletedProcess[Any] | None:
         """Delete an existing environment."""
         self.logger.info(f"Deleting environment: {environment_name}")
-        mm_prefix = [self.micromamba_path, "env", "remove", "-n", environment_name]
-        command = mm_prefix + ["--yes"]
+        command = [self.micromamba_path, "env", "remove", "--yes", "-n", environment_name]
         result = self.curator_run(command, check=False)
         return self.handle_result(
             result, f"Failed to delete environment {environment_name}",
@@ -109,13 +109,14 @@ class EnvironmentManager:
         environment_name: str,
         requirements_paths: List[Path],
     ) -> bool:
-        """Install the compiled package list."""
+        """Install the compiled package lists."""
         self.logger.info(f"Installing packages from: {requirements_paths}")
 
         cmd = [
             "uv",
             "pip",
             "install",
+            "--yes",
         ]
         for path in requirements_paths:
             cmd += ["-r", str(path)]
@@ -126,6 +127,31 @@ class EnvironmentManager:
             result,
             "Package installation failed:",
             "Package installation completed successfully:",
+        )
+
+    def uninstall_packages(
+        self,
+        environment_name: str,
+        requirements_paths: List[Path],
+    ) -> bool:
+        """Uninstall the compiled package lists."""
+        self.logger.info(f"Uninstalling packages from: {requirements_paths}")
+
+        cmd = [
+            "uv",
+            "pip",
+            "uninstall",
+            "--yes",
+        ]
+        for path in requirements_paths:
+            cmd += ["-r", str(path)]
+
+        # Install packages using uv
+        result = self.env_run(environment_name, cmd, check=False)
+        return self.handle_result(
+            result,
+            "Package un-installation failed:",
+            "Package un-installation completed successfully:",
         )
 
     def test_imports(self, environment_name: str, import_map: dict) -> bool:
@@ -175,6 +201,7 @@ class EnvironmentManager:
             "jupyter",
             "kernelspec",
             "uninstall",
+            "--yes",
             environment_name,
         ]
         result = self.curator_run(cmd, check=False)

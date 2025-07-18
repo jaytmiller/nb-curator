@@ -14,22 +14,22 @@ class CuratorConfig:
     """Configuration class for NotebookCurator."""
 
     spec_file: str
+
     micromamba_path: str = "micromamba"
     output_dir: Path = Path("./output")
-
-    repos_dir: Optional[str] = None
-    clone_repos: bool = False
-    delete_repos: bool = False
-
     verbose: bool = False
     debug: bool = False
 
-    compile_env: bool = False
+    repos_dir: Optional[Path] = None
+    clone_repos: bool = False
+    delete_repos: bool = False
 
     init_env: bool = False
     delete_env: bool = False
 
-    install_env: bool = False
+    compile_packages: bool = False
+    install_packages: bool = False
+    uninstall_packages: bool = False
 
     test_notebooks: str | None = None
     jobs: int = 1
@@ -37,6 +37,9 @@ class CuratorConfig:
 
     inject_spi: bool = False
     submit_for_build: bool = False
+
+    reset_spec: bool = False
+
     curate: bool = False
 
     def __post_init__(self):

@@ -51,18 +51,31 @@ if [ $# -eq 0 ]; then
 fi
 
 setup_env
+
 case $1 in
     boot*)
-	shift;
-	rm -rf ${NBC_MM}
-	bootstrap;
-	;;
-    setup|environment)
-	eval "$($NBC_MM/bin/micromamba shell hook --shell bash)"
-	micromamba activate nbcurator
+    	shift;
+	    rm -rf ${NBC_MM}
+    	bootstrap;
+        exit $?
 	;;
     *)
-	eval "$($NBC_MM/bin/micromamba shell hook --shell bash)"
+    ;;
+esac
+
+eval "$($NBC_MM/bin/micromamba shell hook --shell bash)"
+
+case $1 in
+    setup|environment)
+	micromamba activate nbcurator
+	;;
+    activate)
+        micromamba activate $2
+	;;
+    deactivate)
+        micromamba deactivate
+	;;
+    *)
 	micromamba activate nbcurator
 	python -m nb_curator $*
 	;;	

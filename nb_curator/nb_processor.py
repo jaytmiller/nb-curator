@@ -22,7 +22,7 @@ class NotebookImportProcessor:
         import_to_nb: Dict[str, List[str]] = {}
         unique_notebooks = set(notebook_paths)
         self.logger.info(
-            f"Processing {len(unique_notebooks)} unique notebooks for imports"
+            f"Processing {len(unique_notebooks)} unique notebooks for imports."
         )
         for nb_path_str in unique_notebooks:
             nb_dict = self._read_notebook_json(nb_path_str)
@@ -32,7 +32,8 @@ class NotebookImportProcessor:
                     if imp not in import_to_nb:
                         import_to_nb[imp] = []
                     import_to_nb[imp].append(nb_path_str)
-        self.logger.info(f"Extracted {len(import_to_nb)} imports")
+                self.logger.debug(f"Extracted {len(imports)} package imports from notebook {nb_path_str}: \n{sorted(list(imports))}")
+        self.logger.info(f"Extracted {len(import_to_nb)} package imports from {len(unique_notebooks)} notebooks.")
         return sorted(list(import_to_nb.keys()))
 
     def _read_notebook_json(self, nb_path: str) -> Optional[dict]:

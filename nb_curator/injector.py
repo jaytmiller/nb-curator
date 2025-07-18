@@ -3,6 +3,7 @@ from typing import List
 
 from .logging import CuratorLogger
 from .spec_manager import SpecManager
+from .utils import get_yaml
 
 
 def get_injector(
@@ -75,8 +76,7 @@ class SpiInjector:
         with open(str(where), "w") as f:
             obj = self.spec_manager.get_output_data(field)
             if isinstance(obj, dict):
-                yaml = self.spec_manager.get_yaml()
-                yaml.dump(obj, f)
+                get_yaml().dump(obj, f)
             elif isinstance(obj, list):
                 f.write("\n".join(obj))
             elif isinstance(obj, str):
@@ -93,9 +93,11 @@ class SpiInjector:
         spi_extra_requirements = []
         for pattern in glob_patterns:
             extras = Path(".").glob(str(pattern))
-            spi_extra_requirements.extend(list(extras))
+            for path in extras:
+                spi_extra_requirements.append(path)
+                self.logger.debug(f"Found SPI {kind} requirements file {path} based on glob '{pattern}'")
         self.logger.info(
-            f"Found SPI extra {len(spi_extra_requirements)} {kind} requirements {spi_extra_requirements}"
+            f"Found SPI extra {len(spi_extra_requirements)} {kind} requirements files."
         )
         return spi_extra_requirements
 

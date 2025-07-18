@@ -1,6 +1,15 @@
 """Utility functions for nb-curator."""
 
 from typing import List
+from ruamel.yaml import YAML
+
+
+def get_yaml() -> YAML:
+    """Return configured ruamel.yaml instance."""
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    return yaml
 
 
 def remove_common_prefix(strings: List[str]) -> List[str]:
