@@ -113,7 +113,9 @@ class RepositoryManager:
         repo_root = self.repos_dir / repo_name
         result = self.run(f"git checkout {branch}", check=False, cwd=repo_root)
         return self.handle_result(
-            result, f"Failed checking out repo {repo_name} existing branch {branch}: "
+            result,
+            f"Failed checking out repo {repo_name} existing branch {branch}: ",
+            f"Checked out repo {repo_name} existing branch {branch}.",
         )
 
     def git_create_branch(self, repo_name, new_branch):
@@ -131,7 +133,8 @@ class RepositoryManager:
         result = self.run(f"git add {path_to_add}", check=False, cwd=repo_root)
         return self.handle_result(
             result,
-            f"Failed adding {path_to_add}: ",
+            f"Failed adding {path_to_add} from {repo_name}: ",
+            f"Added {path_to_add} to {repo_name}.",
         )
 
     def git_commit(self, repo_name: str, commit_msg: str) -> bool:
@@ -143,6 +146,7 @@ class RepositoryManager:
             return self.handle_result(
                 result,
                 f"Failed commiting {repo_name}: ",
+                f"Commited {repo_name}.",
             )
 
     def git_push(self, repo_name: str, branch_name: str) -> bool:
@@ -151,6 +155,7 @@ class RepositoryManager:
         return self.handle_result(
             result,
             f"Failed pushing repo {repo_name} branch {branch_name}: ",
+            f"Pushed repo {repo_name} branch {branch_name}.",
         )
 
     def github_create_pr(
@@ -165,9 +170,10 @@ class RepositoryManager:
                     "gh",
                     "pr",
                     "create",
-                    "--base",
-                    merge_to,
-                    "-t",
+                    # "--base",
+                    # merge_to,
+                    "--no-maintainer-edit",
+                    "--title",
                     "'" + title + "'",
                     "--body-file",
                     temp.name,
@@ -178,6 +184,7 @@ class RepositoryManager:
             return self.handle_result(
                 result,
                 f"Failed creating PR {title} for {repo_name}: ",
+                f"Created PR {title} to {merge_to} for {repo_name}.",
             )
 
     def github_merge_pr(
@@ -205,4 +212,5 @@ class RepositoryManager:
             return self.handle_result(
                 result,
                 f"Failed merging PR {title} to {repo_name}: ",
+                f"Merged PR {title} to {repo_name}.",
             )
