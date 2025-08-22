@@ -169,7 +169,7 @@ class EnvironmentManager:
             raise RuntimeError(f"Expected CompletedProcess, got {type(result)}")
         if result.returncode != 0:
             if fail.strip().endswith(":"):
-                fail += result.stderr.strip()
+                fail += result.stderr.strip() + " ::: " + result.stdout.strip()
             return self.logger.error(fail)
         else:
             if success.strip().endswith(":"):
