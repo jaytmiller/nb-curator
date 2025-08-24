@@ -50,7 +50,7 @@ class SpiInjector:
         self.spi_path = Path(repo_manager.repos_dir) / self.repo_name
         self.deployment_name = self.spec_manager.deployment_name
         self.kernel_name = self.spec_manager.kernel_name
-        self.base_ingest_branch = "main"
+        self.base_ingest_branch = "origin/main"
         self.ingest_dir = Path("nbc-spec-archive")
         self.archive_dir = Path("nbc-spec-archive")
         self.deployments_path = self.spi_path / "deployments"
