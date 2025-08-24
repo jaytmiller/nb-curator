@@ -163,7 +163,7 @@ class RepositoryManager:
             return self.handle_result(
                 result,
                 f"Failed commiting {repo_name}: ",
-                f"Commited {repo_name} for {commit_msg}.",
+                f"Commited {repo_name}.",
             )
 
     def git_push(self, repo_name: str, branch_name: str) -> bool:
