@@ -113,7 +113,7 @@ class RepositoryManager:
         repo_root = self.repos_dir / repo_name
         result = self.run(f"git checkout {branch}", check=False, cwd=repo_root)
         return self.handle_result(
-            result, 
+            result,
             f"Failed checking out repo {repo_name} existing branch {branch}: ",
             f"Checked out repo {repo_name} existing branch {branch}.",
         )
