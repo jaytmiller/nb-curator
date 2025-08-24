@@ -25,7 +25,7 @@ def get_ingest_name(image_name: str) -> str:
     """Name of spec when added to curator ingest directory."""
     # replace spaces, dots, etc. with "-"
     ingestified = re.sub("[^0-9a-zA-Z-]", "-", image_name)
-    return "nbc-" + ingestified + ".yaml"
+    return "nbc-" + ingestified + "-" + utils.hex_time() + ".yaml"
 
 
 class SpiInjector:
@@ -51,7 +51,7 @@ class SpiInjector:
         self.deployment_name = self.spec_manager.deployment_name
         self.kernel_name = self.spec_manager.kernel_name
         self.base_ingest_branch = "main"
-        self.ingest_dir = Path(".nbc-spec-ingest")
+        self.ingest_dir = Path("nbc-spec-archive")
         self.archive_dir = Path("nbc-spec-archive")
         self.deployments_path = self.spi_path / "deployments"
         self.deployment_path = self.deployments_path / self.deployment_name
@@ -122,6 +122,8 @@ Description:
             return False
         spec_dest = self.spi_path / self.ingest_dir
         spec_dest.mkdir(exist_ok=True, parents=True)
+        # if not self.repo_manager.git_remove(self.repo_name, spec_dest, "*.yaml"):
+        #     return False
         self.copy_file(self.spec_manager.spec_file, spec_dest / ingest_name)
         if not self.repo_manager.git_add(self.repo_name, self.ingest_dir / ingest_name):
             return False
@@ -148,24 +150,7 @@ Description:
         ):
             return False
 
-        # self.logger.info("Merging PR...")
-        # if not self.repo_manager.github_merge_pr(
-        #     self.repo_name, new_ingest_branch, title, message
-        # ):
-        #     return False
-
         return True
-
-    # def archive_curator_spec(self) -> bool:
-    #     """During GitHub actions, copy the spec from the ingest directory
-    #     to an archive location with a more recognizable name.
-    #     """
-    #     source_dir = self.spi_path / ".spec-ingest"
-    #     source = list(source_dir.glob("*.yaml"))[0]
-    #     dest = self.spi_path / ".spec-archive" / self.deployment_name / source.name
-    #     dest.parent.mkdir(parents=True, exist_ok=True)
-    #     shutil.copy(source, dest)
-    #     return True
 
     def set_curator_spec(self) -> bool:
         """Write out the curator environment spec with a generic name."""

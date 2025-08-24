@@ -406,34 +406,3 @@ class NotebookCurator:
 
     def _submit_for_build(self) -> bool:
         return self.injector.submit_for_build()
-
-    def _validate_spec_injection(self) -> bool:  # action support
-        """Valid changes:
-        1. Only changes to .nbc-spec-ingest are permitted.
-            See "git diff --name-status origin/main...HEAD" nominally on PR branch
-        2. Only one spec should be added.
-        3. No modifications or deletions or other changes are permitted.
-            See "git diff --name-status origin/main...HEAD" nominally on PR branch
-        4. Submitted spec must validate.
-        5. Hash of submitted spec must verify.
-        6. Dry-run check of --reinstall workflow must pass.
-            Valid mamba spec and pip versions.
-
-        Return path/name of solitary spec added by PR
-        """
-        return False
-
-    def _archive_submitted_spec(self) -> bool:  # action support
-        """
-        1. Rename and archive spec with image-name and date suffix.
-        2. Copy to nbc-spec-archive which *cannot* be pushed by curators.
-        Return archived path/name from which to build.
-        """
-        return False
-
-    def _update_pr_and_merge(self) -> bool:  # action
-        """
-        Add to branch
-        Commit branch
-        """
-        return False

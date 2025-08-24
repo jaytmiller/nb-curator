@@ -131,8 +131,25 @@ class RepositoryManager:
         result = self.run(f"git add {path_to_add}", check=False, cwd=repo_root)
         return self.handle_result(
             result,
-            f"Failed adding {path_to_add}: ",
+            f"Failed adding {path_to_add} from {repo_name}: ",
         )
+
+    # XXX Globbing below does not pass MyPy, delete this code when known unneeded
+    # def git_remove(self, repo_name: str, remove_path: Path, remove_expr: str) -> bool:
+    #     repo_root = self.repos_dir / repo_name
+    #     glob_path = repo_root / remove_path
+    #     remove_globbed = " ".join(glob_path.glob(remove_expr))
+    #     if remove_globbed:
+    #         result = self.run(
+    #             f"git rm --ignore-unmatch --force {remove_globbed}", check=False, cwd=repo_root
+    #         )
+    #         return self.handle_result(
+    #             result,
+    #             f"Failed removing {remove_expr} from {repo_name}: ",
+    #         )
+    #     else:
+    #         self.logger.debug("No old specs to remove,  skippping...")
+    #         return True
 
     def git_commit(self, repo_name: str, commit_msg: str) -> bool:
         repo_root = self.repos_dir / repo_name

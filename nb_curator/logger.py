@@ -160,6 +160,8 @@ class CuratorLogger:
         msg = self._lformat(*args)
         self.errors.append(msg)
         self.logger.error(msg)
+        if self.debug_mode:
+            pdb.set_trace()
         return False
 
     def info(self, *args) -> bool:

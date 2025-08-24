@@ -127,6 +127,7 @@ case $NBC_COMMAND in
             echo '--------------------------------------------------------------------------------------------------------------------'
             micromamba activate nbcurator
             SPEC=$1; shift;
+	    set -eu
             CURATED_ENV=$(yq .image_spec_header.image_name $SPEC)
             if python -m nb_curator ${SPEC} --install $*; then
                 echo '--------------------------------------------------------------------------------------------------------------------------'
@@ -151,6 +152,7 @@ case $NBC_COMMAND in
         micromamba deactivate
         ;;
     *)
+        set -eu
         micromamba activate nbcurator
         python -m nb_curator $NBC_COMMAND $*
         ;;
