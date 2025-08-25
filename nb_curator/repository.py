@@ -189,6 +189,7 @@ class RepositoryManager:
                     "create",
                     # "--base",
                     # merge_to,
+                    "--no-maintainer-edit",
                     "--title",
                     "'" + title + "'",
                     "--body-file",
@@ -202,6 +203,16 @@ class RepositoryManager:
                 f"Failed creating PR {title} for {repo_name}: ",
                 f"Created PR {title} to {merge_to} for {repo_name}.",
             )
+
+    def github_automerge_pr(self, repo_name: str, new_ingest_branch: str) -> bool:
+        repo_root = self.repos_dir / repo_name
+        result = self.run(f"gh pr merge --auto --delete-branch --rebase {new_ingest_branch}", 
+            check=False, cwd=repo_root)
+        return self.handle_result(
+            result,
+            f"Failed setting automerge on {repo_name}: ",
+            f"Set PR auto-merge / auto-delete.")
+
 
     def github_merge_pr(
         self, repo_name: str, merge_from: str, title: str, body_msg: str

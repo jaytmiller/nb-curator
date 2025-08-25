@@ -1,6 +1,7 @@
 from pathlib import Path
 import shutil
 import re
+import time
 
 from .logger import CuratorLogger
 from .repository import RepositoryManager
@@ -148,6 +149,11 @@ Description:
         if not self.repo_manager.github_create_pr(
             self.repo_name, base_ingest_branch, title, message
         ):
+            return False
+
+        self.logger.info("Delaying set PR automerge to avoid races...")
+        time.sleep(10)
+        if not self.repo_manager.github_automerge_pr(self.repo_name, new_ingest_branch):
             return False
 
         return True
